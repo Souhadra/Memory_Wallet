@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Memory Wallet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Your AI memory. Your rules. Own and control the memory you share with AI applications. Local-first prototype.",
   "permissions": ["storage", "scripting"],
   "host_permissions": ["https://chatgpt.com/*", "https://claude.ai/*"],
@@ -27,3 +27,4 @@
     "128": "assets/icon128.png"
   }
 }
+

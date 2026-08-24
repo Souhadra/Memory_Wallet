@@ -2,13 +2,16 @@ import type { AIProviderAdapter } from "./types";
 
 const USER_MESSAGE_SELECTORS = [
   'div[data-testid="user-message"]',
-  'div.font-claude-message[data-is-streaming]',
+  "div.font-claude-message",
   '[data-testid="conversation"] div.flex.flex-col.items-end',
 ];
 const COMPOSER_SELECTORS = [
-  "div[contenteditable='true'].ProseMirror",
-  "div[contenteditable='true'][aria-label]",
   "fieldset div[contenteditable='true']",
+  "div[contenteditable='true'].ProseMirror",
+  "main div[role='textbox']",
+  "div[contenteditable='true'][aria-label]",
+  "form textarea",
+  "textarea[placeholder]",
 ];
 const SEND_BUTTON_SELECTORS = [
   'button[aria-label="Send message"]',
@@ -27,7 +30,8 @@ function firstMatch<T extends Element>(selectors: string[]): T | null {
 function setText(el: HTMLElement, text: string): boolean {
   el.focus();
   if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const proto =
+      el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
     setter?.call(el, text);
     el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -62,7 +66,8 @@ export const claudeAdapter: AIProviderAdapter = {
   readComposerText(): string {
     const composer = this.getComposer();
     if (!composer) return "";
-    return (composer as HTMLTextAreaElement).value ?? composer.textContent ?? "";
+    if (composer instanceof HTMLTextAreaElement) return composer.value;
+    return composer.textContent ?? "";
   },
 
   setComposerText(text: string): boolean {
@@ -81,6 +86,19 @@ export const claudeAdapter: AIProviderAdapter = {
       if (btn && !btn.disabled) {
         btn.click();
         return true;
+      }
+    }
+    return false;
+  },
+
+  isSendButton(target: EventTarget | null): boolean {
+    const el = target instanceof Element ? target.closest("button") : null;
+    if (!el) return false;
+    for (const sel of SEND_BUTTON_SELECTORS) {
+      try {
+        if (el.matches(sel)) return true;
+      } catch {
+        // invalid selector — ignore
       }
     }
     return false;

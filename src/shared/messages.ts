@@ -23,6 +23,8 @@ export interface ShowMemoryRequestPayload {
   profileIcon?: string;
   requestedCategories: string[];
   reason: string;
+  /** True when the user's unsent message is being held pending this decision. */
+  paused?: boolean;
 }
 
 /** Content -> Background: user made a decision. */

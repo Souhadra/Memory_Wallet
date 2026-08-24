@@ -4,17 +4,35 @@ export const CONTEXT_END_MARKER = "[End Memory Wallet Context]";
 interface DetectorCallbacks {
   /** Latest submitted user message from the conversation DOM. */
   getUserQuery: () => string | null;
-  /** Current draft text in the composer (snapshot at send time). */
+  /** Current draft text in the composer. */
   getComposerText: () => string;
   /** Is this keyboard event targeting the composer? */
   isComposerTarget: (target: EventTarget | null) => boolean;
+  /** Is this event target the site's send button? */
+  isSendButton: (target: EventTarget | null) => boolean;
+}
+
+interface DetectorHandlers {
+  /**
+   * Synchronous check (cached setting): should we intercept sends at all?
+   * Must be cheap — it runs inside capture-phase listeners.
+   */
+  shouldIntercept: () => boolean;
+  /**
+   * A user question needs wallet processing.
+   * - paused=true: the send event was cancelled; the message is held.
+   * - paused=false: the message already went out (fallback detection).
+   */
+  onQueryNeedsWallet: (query: string, paused: boolean) => void;
 }
 
 /**
- * Detects newly submitted user messages using two complementary triggers:
- *  1. Send actions (Enter / send-button click) with a composer text snapshot.
- *  2. A MutationObserver counting user-message bubbles as a safety net.
- * Deliberately simple so it is easy to repair when sites change markup.
+ * Detects user messages with two strategies:
+ *
+ * 1. PRIMARY — intercept the send action itself (Enter / send-button click)
+ *    in the capture phase so the message can be paused BEFORE submission.
+ * 2. FALLBACK — a MutationObserver counting user-message bubbles, used when
+ *    interception is disabled or the site uses non-standard send handling.
  */
 export class QueryDetector {
   private observer: MutationObserver | null = null;
@@ -22,7 +40,7 @@ export class QueryDetector {
   private lastQuery = "";
   private debounceTimer: number | null = null;
 
-  constructor(private cb: DetectorCallbacks, private onQuery: (query: string) => void) {}
+  constructor(private cb: DetectorCallbacks, private handlers: DetectorHandlers) {}
 
   start(): void {
     this.processedCount = this.countMessages(); // ignore existing history
@@ -47,30 +65,41 @@ export class QueryDetector {
   /** Manually run the pipeline for the last known question (toolbar pill). */
   forceEmit(): boolean {
     if (!this.lastQuery) return false;
-    this.onQuery(this.lastQuery);
+    this.handlers.onQueryNeedsWallet(this.lastQuery, false);
     return true;
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {
+    // IME composition (e.g. CJK input) — never touch.
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key !== "Enter") return;
     if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) return; // newline
     if (!this.cb.isComposerTarget(e.target)) return;
-    this.handlePotentialSend();
+
+    const draft = this.cb.getComposerText().trim();
+    if (!draft || draft.includes(CONTEXT_MARKER)) return; // normal send, not our business
+    if (!this.handlers.shouldIntercept()) return; // passthrough mode
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this.lastQuery = draft;
+    console.info(`[Memory Wallet] send intercepted (${draft.length} chars)`);
+    this.handlers.onQueryNeedsWallet(draft, true);
   };
 
   private handleClick = (e: MouseEvent): void => {
-    const target = e.target as HTMLElement | null;
-    if (!target?.closest?.("button")) return;
-    if (!this.cb.isComposerTarget(target)) return;
-    this.handlePotentialSend();
-  };
+    if (!this.cb.isSendButton(e.target)) return;
 
-  private handlePotentialSend(): void {
-    const snapshot = this.cb.getComposerText().trim();
-    // The message usually appears shortly after sending; prefer DOM text,
-    // fall back to the composer snapshot taken just before it cleared.
-    window.setTimeout(() => this.emit(snapshot), 700);
-  }
+    const draft = this.cb.getComposerText().trim();
+    if (!draft || draft.includes(CONTEXT_MARKER)) return;
+    if (!this.handlers.shouldIntercept()) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this.lastQuery = draft;
+    console.info(`[Memory Wallet] send intercepted (${draft.length} chars)`);
+    this.handlers.onQueryNeedsWallet(draft, true);
+  };
 
   private countMessages(): number {
     return document.querySelectorAll(
@@ -90,14 +119,16 @@ export class QueryDetector {
     this.emit("");
   }
 
+  /** Post-send detection (fallback mode). */
   private emit(snapshot: string): void {
+    if (this.handlers.shouldIntercept()) return; // interception owns the flow
     let query = this.cb.getUserQuery() ?? snapshot;
     query = query.trim();
     if (!query) return;
     if (query.includes(CONTEXT_MARKER)) return; // our own injected send
-    if (query === this.lastQuery && snapshot === "") return; // mutation echo of same msg
+    if (query === this.lastQuery && snapshot === "") return; // mutation echo
     this.lastQuery = query;
     console.info(`[Memory Wallet] question detected (${query.length} chars)`);
-    this.onQuery(query);
+    this.handlers.onQueryNeedsWallet(query, false);
   }
 }

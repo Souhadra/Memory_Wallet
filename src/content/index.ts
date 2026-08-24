@@ -1,14 +1,13 @@
 import type { AIProviderAdapter } from "../providers/types";
+import type { Settings } from "../shared/types";
 import { activeProvider } from "../providers/registry";
 import { QueryDetector } from "./detector";
-import { MemoryRequestModal } from "./ui/modal";
-import { showToast, showPill, removePill } from "./ui/toast";
-import { injectContextIntoConversation } from "./injector";
+import { PendingFlow } from "./pendingFlow";
+import { showPill, removePill, showToast } from "./ui/toast";
 import {
   MSG,
-  type DecisionLike,
   type InjectContextPayload,
-  type QueryDetectedPayload,
+  type ShowMemoryRequestPayload,
 } from "../shared/messages";
 
 const provider = activeProvider();
@@ -17,22 +16,21 @@ if (provider) {
 }
 
 function initContentScript(provider: AIProviderAdapter): void {
-  const modal = new MemoryRequestModal();
+  // Cached settings so capture-phase listeners can decide synchronously.
+  let settings: Partial<Settings> = {};
+  void chrome.storage.local.get("mw_settings").then((res) => {
+    settings = (res["mw_settings"] as Partial<Settings>) ?? {};
+    if (settings.showToolbarButton !== false) showPill(provider.name);
+  });
 
-  async function sendQuery(query: string) {
-    const payload: QueryDetectedPayload = {
-      appId: provider.id,
-      query,
-      url: location.href,
-    };
-    try {
-      await chrome.runtime.sendMessage({ type: MSG.QUERY_DETECTED, payload });
-      console.info("[Memory Wallet] query sent to wallet");
-    } catch {
-      showToast("Memory Wallet was reloaded — refresh this tab to reactivate it", "warn");
-      removePill();
-    }
-  }
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes["mw_settings"]) return;
+    settings = changes["mw_settings"].newValue ?? {};
+    if (settings.showToolbarButton === false) removePill();
+    else showPill(provider.name);
+  });
+
+  const flow = new PendingFlow(provider);
 
   const detector = new QueryDetector(
     {
@@ -43,81 +41,40 @@ function initContentScript(provider: AIProviderAdapter): void {
         if (!composer || !(target instanceof Node)) return false;
         return composer.contains(target);
       },
+      isSendButton: (target) => provider.isSendButton(target),
     },
-    (query) => {
-      void sendQuery(query);
+    {
+      shouldIntercept: () => settings.pauseBeforeShare !== false,
+      onQueryNeedsWallet: (query, paused) => {
+        if (!flow.canAcceptQuery()) {
+          if (paused) {
+            showToast("Memory Wallet is still handling your previous request", "info");
+          }
+          return;
+        }
+        void flow.begin(query, paused);
+      },
     },
   );
 
   detector.start();
 
-  // Floating pill so the demo never depends on auto-detection alone.
-  void chrome.storage.local.get("mw_settings").then((result) => {
-    const settings = result["mw_settings"];
-    if (!settings || settings.showToolbarButton !== false) showPill(provider.name);
-  });
-
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes["mw_settings"]) {
-      const s = changes["mw_settings"].newValue;
-      if (s?.showToolbarButton === false) removePill();
-      else showPill(provider.name);
-    }
-  });
-
   document.addEventListener("mw-pill-click", () => {
-    if (modal.isOpen()) return;
+    if (!flow.canAcceptQuery()) return;
     if (detector.forceEmit()) return;
     showToast("Ask a question first — then click the pill again", "info");
   });
 
   chrome.runtime.onMessage.addListener((message) => {
     switch (message?.type) {
-      case MSG.SHOW_MEMORY_REQUEST: {
-        if (modal.isOpen()) break;
-        const requestPayload = message.payload;
-        void modal.show(requestPayload).then((decision: DecisionLike) => {
-          void chrome.runtime
-            .sendMessage({
-              type: MSG.REQUEST_DECISION,
-              payload: { ...decision, requestId: requestPayload.requestId },
-            })
-            .catch(() => undefined);
-          if (decision.decision === "deny") {
-            showToast("Memory request denied", "warn");
-          }
-        });
+      case MSG.SHOW_MEMORY_REQUEST:
+        void flow.handleShowRequest(message.payload as ShowMemoryRequestPayload);
         break;
-      }
-      case MSG.INJECT_CONTEXT: {
-        const payload = message.payload as InjectContextPayload;
-        if (!payload.contextText) {
-          showToast("Memory Wallet: no relevant memories found in this profile");
-          break;
-        }
-        void injectContextIntoConversation(
-          provider,
-          payload.contextText,
-          payload.query,
-        ).then((result) => {
-          if (result.filled && result.submitted) {
-            showToast(
-              `Shared ${payload.memoryCount} memories from "${payload.profileName}" with ${provider.name}`,
-              "success",
-            );
-          } else if (result.filled) {
-            showToast(
-              `Context inserted — review and press Enter to send (${payload.memoryCount} memories)`,
-              "success",
-            );
-          } else {
-            showToast("Could not reach the message box; context copied to clipboard", "warn");
-          }
-        });
+      case MSG.INJECT_CONTEXT:
+        void flow.handleInjected(message.payload as InjectContextPayload);
         break;
-      }
       case MSG.REQUEST_DENIED:
-        modal.close();
+        flow.handleDenied();
         break;
       default:
         break;

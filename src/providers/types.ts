@@ -17,4 +17,6 @@ export interface AIProviderAdapter {
   setComposerText(text: string): boolean;
   /** Click send, best effort. */
   submitComposer(): boolean;
+  /** Is this event target the site's send button? */
+  isSendButton(target: EventTarget | null): boolean;
 }

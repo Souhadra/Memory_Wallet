@@ -5,6 +5,11 @@
 A local-first browser extension prototype that lets you own the memory you share with AI
 applications. Profiles act as context boundaries; AI apps must *request* access, and you decide.
 
+**How it works on ChatGPT/Claude:** when you press Enter or click Send, your message is paused,
+a permission card appears instantly, and only after you ALLOW does `[Memory Wallet Context]`
++ your question go out together — so the answer is generated *with* your memory. DENY sends
+your original question unchanged.
+
 This is a validation prototype — not a production product. Everything is stored in
 `chrome.storage.local` on your device. There is no backend, no auth, no analytics, no network calls.
 
@@ -106,46 +111,50 @@ or wrapper objects like `{ "memories": [...] }`.
 
 ## Manual test procedure (the 2-minute demo)
 
-1. Click the Memory Wallet icon → popup opens.
+1. Click the Memory Wallet icon → popup opens (green ● = background running).
 2. Click **Load Demo Data** → Startup / Work / Personal profiles appear; Startup becomes active.
-3. Click **Open Wallet** → dashboard shows 5 Startup memories under Profiles/Memories.
-4. Open https://chatgpt.com and start a new chat. Ask: *"What architecture should I use for my current project?"*
-5. Because ChatGPT × Startup defaults to **Ask**, a 🔐 **Memory Request** card appears top-right:
-   profile, requested info, reason, READ ONLY badge, duration radios. Choose **Once** → **Allow**.
-6. The composer fills with a `[Memory Wallet Context] … [End]` block + your question and auto-sends.
-   ChatGPT answers using your context.
-7. Open https://claude.ai in another tab. Ask something related: *"How should I structure my project?"*
-8. Claude triggers its own request → **Allow** → your memories are injected into Claude too.
-9. Back in the popup/dashboard check **Requests**: both requests logged (app, profile, time, outcome).
-10. Revoke: dashboard → **Permissions** → set Claude × Startup to **Ask** or **Deny**;
-    next Claude question gets no automatic sharing (Deny logs a denied request silently).
+3. Open https://chatgpt.com and start a new chat. Type:
+   *"I'm working on my library chatbot LIBRO — what architecture should I use?"*
+4. Press **Enter** — the message does NOT send yet. A 🔐 **Memory Request** card appears instantly
+   with "Your message is paused until you decide": profile, requested info, reason, READ ONLY,
+   duration radios.
+5. Choose **Once** → **Allow** → the composer fills with `[Memory Wallet Context] …` + your
+   question and submits as ONE message. ChatGPT answers using your context.
+6. Open https://claude.ai in another tab. Ask a related question → same flow → your memories
+   travel across AIs.
+7. Back in the popup/dashboard check **Requests**: every request logged (app, profile, outcome).
+8. Revoke: dashboard → **Permissions** → set ChatGPT × Startup to **Deny**. Next question sends
+   normally, no memory shared (denial is logged silently).
+9. Optional: Settings → turn OFF "Ask for memory before my message is sent" to compare with the
+   old after-send behavior.
 
 ## What works
 
+- **Intercept-at-send flow**: pause message → permission card → allow → context + question sent
+  together; deny/timeout → original question sent unchanged
 - Profiles + manual memory CRUD (create/rename/delete profile; add/edit/delete memory)
-- **Import of real ChatGPT memory JSON** into any profile (dedupe + category inference)
+- **Import of real ChatGPT memory JSON** into any profile (nested-profile flattener, dedupe,
+  category inference)
 - Active-profile switching in the popup (wallet metaphor)
-- Site detection + user-query detection for ChatGPT & Claude via provider adapters
-  (send-button/Enter triggers + mutation observer fallback + on-site 🔐 pill for manual re-trigger)
+- Site detection + send interception for ChatGPT & Claude via provider adapters, with mutation-
+  observer fallback and an on-site 🔐 pill for manual re-triggering
 - Auto-injection of the content script into already-open AI tabs after install/reload
 - Specific permission modal (who / which profile / what info / why / read-only / duration)
 - ASK / ALLOW / DENY per (AI app × profile) + ALLOW ONCE + session grants
 - Keyword-based relevance scoring (`retrieveRelevantMemories`) returning top-N matches
-- Clearly-marked context block injected into the conversation composer, optional auto-send
 - Request audit log, recent requests in popup, revoke controls, factory reset
 - Local-only mode (always on), demo data marked as `[demo]`
 
 ## Known limitations
 
-- **DOM selectors are fragile** — ChatGPT/Claude markup changes will break detection/injection;
-  selectors live in one file per provider by design.
+- **DOM selectors and send interception are fragile** — ChatGPT/Claude markup changes can break
+  detection, injection or send-pausing; everything lives in one small file per provider by design.
+  If interception fails (non-standard send handling), the extension falls back to after-send mode.
 - Context is delivered via the visible composer (not invisible injection) — intentional and honest.
+- While a memory request is open, pressing Enter again shows "still handling your previous request".
 - Session grants ("This session") reset when the service worker restarts (browser restart).
 - Retrieval is keyword overlap + category hints; no semantic understanding.
-- One pending request at a time per tab; queries during a pending request are ignored.
 - No cross-device sync, no encryption-at-rest beyond Chrome's profile storage, no Gemini.
-- Content scripts don't run on chrome:// pages or before you visit a supported site after install
-  (reload the AI tab once after installing).
 
 ## Three decisions to make next
 

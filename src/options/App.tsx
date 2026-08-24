@@ -645,6 +645,22 @@ function Settings() {
           </div>
           <div className="setting-row">
             <div>
+              <strong>Ask for memory before my message is sent</strong>
+              <p className="muted small">
+                Pauses your message when you hit Enter, shows the permission card first, then sends
+                context + question together. Turn off to let messages send immediately and share
+                memory afterwards.
+              </p>
+            </div>
+            <Toggle
+              checked={s.pauseBeforeShare !== false}
+              onChange={(v) =>
+                void import("../shared/storage").then((st) => st.saveSettings({ pauseBeforeShare: v }))
+              }
+            />
+          </div>
+          <div className="setting-row">
+            <div>
               <strong>Automatically send context with your question</strong>
               <p className="muted small">
                 When approved, the context block and your question are submitted together. Turn off to

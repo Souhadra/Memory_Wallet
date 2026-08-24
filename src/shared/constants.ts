@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   activeProfileId: null,
   maxMemoriesPerRequest: 5,
   showToolbarButton: true,
+  pauseBeforeShare: true,
 };
 
 /** Keywords used to infer which memory categories a user query touches. */

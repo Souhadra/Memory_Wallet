@@ -68,6 +68,7 @@ export interface Settings {
   activeProfileId: string | null;
   maxMemoriesPerRequest: number;
   showToolbarButton: boolean;
+  pauseBeforeShare: boolean;
 }
 
 export interface WalletState {

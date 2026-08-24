@@ -24,8 +24,13 @@ const STYLE = `
 }
 .mw-close:hover { background: #26262f; color: #ececf1; }
 .mw-body { padding: 0 16px 16px; }
-.mw-lede { margin: 0 0 12px; font-size: 15px; line-height: 1.45; color: #ececf1; }
+.mw-lede { margin: 0 0 4px; font-size: 15px; line-height: 1.45; color: #ececf1; }
 .mw-lede b { color: #fff; }
+.mw-paused-note {
+  margin: 0 0 12px; font-size: 12px; color: #fbbf24;
+}
+.mw-paused-note .dot { animation: mw-blink 1.2s infinite; }
+@keyframes mw-blink { 50% { opacity: .25; } }
 .mw-section { margin-bottom: 12px; }
 .mw-label {
   font-size: 11px; font-weight: 600; letter-spacing: .6px;
@@ -117,6 +122,7 @@ export class MemoryRequestModal {
             <div class="mw-head">🔐 Memory Request <button class="mw-close" title="Deny and close">✕</button></div>
             <div class="mw-body">
               <p class="mw-lede"><b>${escapeHtml(payload.appName)}</b> is requesting access to your memory.</p>
+              ${payload.paused ? `<p class="mw-paused-note"><span class="dot">●</span> Your message is paused until you decide.</p>` : ""}
               <div class="mw-section">
                 <div class="mw-label">Profile</div>
                 <div class="mw-profile"><span>${icon}</span>${escapeHtml(payload.profileName)}</div>

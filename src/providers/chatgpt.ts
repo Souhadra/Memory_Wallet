@@ -6,7 +6,14 @@ const USER_MESSAGE_SELECTORS = [
   'article[data-testid^="conversation-turn"] div[data-message-author-role="user"]',
   '[data-testid="user-message"]',
 ];
-const COMPOSER_SELECTORS = ["#prompt-textarea", "form div[contenteditable='true']", "form textarea[data-id]"];
+const COMPOSER_SELECTORS = [
+  "#prompt-textarea",
+  "main div[role='textbox']",
+  "form div[contenteditable='true']",
+  "div[contenteditable='true'][id]",
+  "form textarea",
+  "textarea[placeholder]",
+];
 const SEND_BUTTON_SELECTORS = [
   'button[data-testid="send-button"]',
   'form button[type="submit"]',
@@ -24,7 +31,8 @@ function firstMatch<T extends Element>(selectors: string[]): T | null {
 function setText(el: HTMLElement, text: string): boolean {
   el.focus();
   if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const proto =
+      el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
     setter?.call(el, text);
     el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -60,7 +68,8 @@ export const chatgptAdapter: AIProviderAdapter = {
   readComposerText(): string {
     const composer = this.getComposer();
     if (!composer) return "";
-    return (composer as HTMLTextAreaElement).value ?? composer.textContent ?? "";
+    if (composer instanceof HTMLTextAreaElement) return composer.value;
+    return composer.textContent ?? "";
   },
 
   setComposerText(text: string): boolean {
@@ -79,6 +88,19 @@ export const chatgptAdapter: AIProviderAdapter = {
       if (btn && !btn.disabled) {
         btn.click();
         return true;
+      }
+    }
+    return false;
+  },
+
+  isSendButton(target: EventTarget | null): boolean {
+    const el = target instanceof Element ? target.closest("button") : null;
+    if (!el) return false;
+    for (const sel of SEND_BUTTON_SELECTORS) {
+      try {
+        if (el.matches(sel)) return true;
+      } catch {
+        // invalid selector — ignore
       }
     }
     return false;
