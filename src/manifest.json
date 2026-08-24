@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Memory Wallet",
+  "version": "0.1.0",
+  "description": "Your AI memory. Your rules. Own and control the memory you share with AI applications. Local-first prototype.",
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["https://chatgpt.com/*", "https://claude.ai/*"],
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://claude.ai/*"],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Memory Wallet — Your AI memory. Your rules."
+  },
+  "options_page": "options/options.html",
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  }
+}

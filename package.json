@@ -1,0 +1,24 @@
+{
+  "name": "memory-wallet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Memory Wallet - Your AI memory. Your rules. Local-first browser extension prototype.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "split-memory": "node scripts/split-memory.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.23.1",
+    "typescript": "^5.5.4"
+  }
+}

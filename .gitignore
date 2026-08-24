@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+scripts/.actions.mjs
+
+# Personal data — never commit
+chatgpt-memories.json
+import-files/

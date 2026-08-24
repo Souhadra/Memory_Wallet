@@ -1,0 +1,726 @@
+import { useState } from "react";
+import { useWalletState } from "../ui/hooks";
+import { Card, SectionTitle, Toggle } from "./components";
+import { relativeTime } from "../ui/format";
+
+type SectionId =
+  | "overview"
+  | "profiles"
+  | "memories"
+  | "apps"
+  | "permissions"
+  | "requests"
+  | "settings";
+
+const NAV: { id: SectionId; label: string; icon: string }[] = [
+  { id: "overview", label: "Overview", icon: "◎" },
+  { id: "profiles", label: "Profiles", icon: "🗂" },
+  { id: "memories", label: "Memories", icon: "🧠" },
+  { id: "apps", label: "AI Apps", icon: "🤖" },
+  { id: "permissions", label: "Permissions", icon: "🛡" },
+  { id: "requests", label: "Requests", icon: "📨" },
+  { id: "settings", label: "Settings", icon: "⚙️" },
+];
+
+export function App() {
+  const state = useWalletState();
+  const [section, setSection] = useState<SectionId>("overview");
+
+  return (
+    <div className="dashboard">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-icon">🔐</span>
+          <div>
+            <h1>Memory Wallet</h1>
+            <p>Your AI memory. Your rules.</p>
+          </div>
+        </div>
+        <nav>
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              className={`nav-item ${section === n.id ? "active" : ""}`}
+              onClick={() => setSection(n.id)}
+            >
+              <span className="nav-icon">{n.icon}</span>
+              {n.label}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-foot">Local-only prototype · v0.1.0</div>
+      </aside>
+
+      <main className="content">
+        {!state ? (
+          <p className="empty-hint">Loading…</p>
+        ) : (
+          <>
+            {section === "overview" && <Overview />}
+            {section === "profiles" && <Profiles />}
+            {section === "memories" && <Memories />}
+            {section === "apps" && <AIApps />}
+            {section === "permissions" && <Permissions />}
+            {section === "requests" && <Requests />}
+            {section === "settings" && <Settings />}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Overview() {
+  const state = useWalletState();
+  if (!state) return null;
+  const recent = state.requests.slice(0, 6);
+
+  return (
+    <>
+      <SectionTitle
+        title="Overview"
+        subtitle="A snapshot of your wallet. Everything is stored locally on this device."
+      />
+      <div className="stats">
+        <Card className="stat">
+          <span className="stat-value">{state.memories.length}</span>
+          <span className="stat-label">Total memories</span>
+        </Card>
+        <Card className="stat">
+          <span className="stat-value">{state.profiles.length}</span>
+          <span className="stat-label">Profiles</span>
+        </Card>
+        <Card className="stat">
+          <span className="stat-value">{state.aiApplications.length}</span>
+          <span className="stat-label">Connected AI apps</span>
+        </Card>
+        <Card className="stat">
+          <span className="stat-value">{state.requests.filter((r) => r.status === "approved").length}</span>
+          <span className="stat-label">Approved requests</span>
+        </Card>
+      </div>
+
+      <h2 className="sub-head">Recent access requests</h2>
+      <Card>
+        {recent.length === 0 ? (
+          <p className="empty-hint">No access requests yet.</p>
+        ) : (
+          <ul className="rows">
+            {recent.map((r) => {
+              const app = state.aiApplications.find((a) => a.id === r.aiApplicationId);
+              const profile = state.profiles.find((p) => p.id === r.profileId);
+              return (
+                <li key={r.id} className="row">
+                  <span className="row-title">{app?.name ?? r.aiApplicationId} → {profile?.name ?? "?"}</span>
+                  <span className="muted">{relativeTime(r.createdAt)}</span>
+                  <StatusChip status={r.status} />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </>
+  );
+}
+
+export function StatusChip({ status }: { status: "approved" | "denied" | "pending" }) {
+  const map = {
+    approved: { label: "Allowed", cls: "chip-allow" },
+    denied: { label: "Denied", cls: "chip-deny" },
+    pending: { label: "Pending", cls: "chip-pending" },
+  } as const;
+  const meta = map[status];
+  return <span className={`chip ${meta.cls}`}>{meta.label}</span>;
+}
+
+function Profiles() {
+  return (
+    <>
+      <SectionTitle
+        title="Profiles"
+        subtitle="Profiles are context boundaries. AI apps only ever see the profile they are granted."
+      />
+      <ProfilesSection />
+    </>
+  );
+}
+
+function ProfilesSection() {
+  const state = useWalletState();
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("📁");
+  const [selected, setSelected] = useState<string | null>(null);
+
+  if (!state) return null;
+  const selProfile = state.profiles.find((p) => p.id === selected);
+
+  async function handleCreate() {
+    if (!name.trim()) return;
+    const { createProfile } = await import("../shared/actions");
+    await createProfile(name, undefined, icon);
+    setName("");
+    setIcon("📁");
+  }
+
+  return (
+    <div className="grid-two">
+      <div className="stack">
+        <Card>
+          <h3 className="card-title">New profile</h3>
+          <div className="form-row">
+            <input
+              placeholder="Icon (emoji)"
+              value={icon}
+              maxLength={4}
+              onChange={(e) => setIcon(e.target.value)}
+              style={{ width: 90 }}
+            />
+            <input
+              placeholder="Profile name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void handleCreate()}
+            />
+            <button className="btn btn-primary" onClick={() => void handleCreate()}>
+              Create
+            </button>
+          </div>
+        </Card>
+
+        {state.profiles.map((p) => {
+          const count = state.memories.filter((m) => m.profileId === p.id).length;
+          const isActive = p.id === state.settings.activeProfileId;
+          return (
+            <Card key={p.id} className={isActive ? "card-accent" : ""}>
+              <div className="profile-card-head">
+                <span className="profile-big">{p.icon}</span>
+                <div className="grow">
+                  <strong>{p.name}</strong>
+                  {isActive && <span className="pill">Active</span>}
+                  <div className="muted small">{count} memories</div>
+                </div>
+              </div>
+              {p.description && <p className="muted small desc">{p.description}</p>}
+              <div className="btn-row">
+                <button className="btn small" onClick={() => setSelected(p.id)}>View</button>
+                <button
+                  className="btn small"
+                  onClick={() => {
+                    const newName = window.prompt("Rename profile", p.name);
+                    if (newName?.trim()) {
+                      void import("../shared/actions").then((a) =>
+                        a.updateProfile(p.id, { name: newName.trim(), icon: p.icon }),
+                      );
+                    }
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  className="btn small danger"
+                  onClick={() => {
+                    if (window.confirm(`Delete "${p.name}" and all of its memories?`)) {
+                      void import("../shared/actions").then((a) => a.deleteProfile(p.id));
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="stack">
+        {selProfile ? (
+          <Card>
+            <h3 className="card-title">
+              {selProfile.icon} {selProfile.name} — recent memories
+            </h3>
+            <ul className="rows">
+              {state.memories
+                .filter((m) => m.profileId === selProfile.id)
+                .slice(0, 8)
+                .map((m) => (
+                  <li key={m.id} className="row">
+                    <span className="row-title">{m.content}</span>
+                    <span className="muted small">{m.category}</span>
+                  </li>
+                ))}
+              {state.memories.filter((m) => m.profileId === selProfile.id).length === 0 && (
+                <li className="empty-hint">No memories in this profile yet.</li>
+              )}
+            </ul>
+            <p className="muted small">Permissions:</p>
+            <ul className="rows">
+              {state.aiApplications.map((app) => {
+                const perm = state.permissions.find(
+                  (x) => x.profileId === selProfile.id && x.aiApplicationId === app.id,
+                );
+                return (
+                  <li key={app.id} className="row">
+                    <span>{app.name}</span>
+                    <span className="muted small">{perm ? perm.access.toUpperCase() : "ASK (default)"}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        ) : (
+          <Card><p className="empty-hint">Select a profile to view details.</p></Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Memories() {
+  return (
+    <>
+      <SectionTitle
+        title="Memories"
+        subtitle="Add facts about yourself manually. Memories never leave this device unless you approve a request."
+      />
+      <MemoriesSection />
+    </>
+  );
+}
+
+function MemoriesSection() {
+  const state = useWalletState();
+  const [profileId, setProfileId] = useState("");
+  const [category, setCategory] = useState("project");
+  const [content, setContent] = useState("");
+  const [importance, setImportance] = useState(0.8);
+  const [filterProfile, setFilterProfile] = useState("all");
+  const [importTarget, setImportTarget] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importMsg, setImportMsg] = useState("");
+
+  if (!state) return null;
+
+  const effectiveProfileId = profileId || state.profiles[0]?.id || "";
+  const shown = state.memories
+    .filter((m) => filterProfile === "all" || m.profileId === filterProfile)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  async function handleSave() {
+    if (!effectiveProfileId || !content.trim()) return;
+    const actions = await import("../shared/actions");
+    await actions.addMemory({
+      profileId: effectiveProfileId,
+      content,
+      category: category as never,
+      importance,
+    });
+    setContent("");
+  }
+
+  async function handleImport() {
+    if (!importTarget) {
+      setImportMsg("Pick a target profile first.");
+      return;
+    }
+    let raw = importText.trim();
+    // If a file was chosen, its content is already loaded into importText.
+    if (!raw) {
+      setImportMsg("Choose a .json file or paste JSON first.");
+      return;
+    }
+    const actions = await import("../shared/actions");
+    const parsed = actions.parseMemoryJson(raw);
+    if (parsed.length === 0) {
+      setImportMsg("Could not find any memories in that JSON.");
+      return;
+    }
+    const result = await actions.importMemoriesIntoProfile(importTarget, parsed);
+    setImportMsg(
+      `Imported ${result.imported} of ${result.total} memories (${result.duplicates} already existed).`,
+    );
+    setImportText("");
+    const fileInput = document.getElementById("mw-import-file") as HTMLInputElement | null;
+    if (fileInput) fileInput.value = "";
+  }
+
+  return (
+    <div className="grid-two">
+      <Card>
+        <h3 className="card-title">Add Memory</h3>
+        <label className="field">
+          Profile
+          <select value={effectiveProfileId} onChange={(e) => setProfileId(e.target.value)}>
+            {state.profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.icon} {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Category
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            {["identity","preference","project","technical","work","personal","goal","other"].map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Memory
+          <textarea
+            rows={4}
+            placeholder="I am building an AI Memory Wallet."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          Importance: <strong>{importance.toFixed(1)}</strong>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.1}
+            value={importance}
+            onChange={(e) => setImportance(parseFloat(e.target.value))}
+          />
+        </label>
+        <button className="btn btn-primary" onClick={() => void handleSave()} disabled={!effectiveProfileId}>
+          Save Memory
+        </button>
+
+        <h3 className="card-title" style={{ marginTop: 22 }}>
+          Import ChatGPT memory JSON
+        </h3>
+        <p className="muted small">
+          Works with the memory list from ChatGPT Settings → Personalization → Memory → Manage, or a
+          data-export <code>memories.json</code>. Memories stay on this device.
+        </p>
+        <label className="field">
+          Target profile
+          <select value={importTarget} onChange={(e) => setImportTarget(e.target.value)}>
+            <option value="">Select profile…</option>
+            {state.profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.icon} {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          JSON file
+          <input
+            id="mw-import-file"
+            type="file"
+            accept=".json,application/json,.txt"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              void file.text().then((t) => setImportText(t));
+            }}
+          />
+        </label>
+        <label className="field">
+          …or paste JSON
+          <textarea
+            rows={3}
+            placeholder='["Prefers concise answers", {"content": "Lives in Berlin"}]'
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+          />
+        </label>
+        <div className="btn-row" style={{ marginTop: 0 }}>
+          <button className="btn btn-primary" onClick={() => void handleImport()}>
+            Import
+          </button>
+          {importMsg && <span className="muted small">{importMsg}</span>}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="form-row" style={{ marginBottom: 10 }}>
+          <select value={filterProfile} onChange={(e) => setFilterProfile(e.target.value)}>
+            <option value="all">All profiles</option>
+            {state.profiles.map((p) => (
+              <option key={p.id} value={p.id}>{p.icon} {p.name}</option>
+            ))}
+          </select>
+          <span className="muted small">{shown.length} memories</span>
+        </div>
+        <ul className="rows">
+          {shown.map((m) => {
+            const p = state.profiles.find((x) => x.id === m.profileId);
+            return (
+              <li key={m.id} className="row memory-row">
+                <div className="memory-main">
+                  <span>{m.content}</span>
+                  <span className="muted small">
+                    {p?.icon} {p?.name} · {m.category} · importance {m.importance.toFixed(1)}
+                  </span>
+                </div>
+                <button
+                  className="btn small danger"
+                  onClick={() => {
+                    void import("../shared/actions").then((a) => a.deleteMemory(m.id));
+                  }}
+                >
+                  ✕
+                </button>
+              </li>
+            );
+          })}
+          {shown.length === 0 && <li className="empty-hint">No memories yet — add one or load demo data in Settings.</li>}
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+function AIApps() {
+  return (
+    <>
+      <SectionTitle
+        title="AI Apps"
+        subtitle="Applications that can request context from your wallet. New providers can be added via provider adapters."
+      />
+      <AIAppsSection />
+    </>
+  );
+}
+
+function AIAppsSection() {
+  const state = useWalletState();
+  if (!state) return null;
+  return (
+    <div className="cards-grid">
+      {state.aiApplications.map((app) => (
+        <Card key={app.id}>
+          <div className="profile-card-head">
+            <span className="profile-big">{app.id === "claude" ? "🟠" : app.id === "chatgpt" ? "🟢" : "🤖"}</span>
+            <div className="grow">
+              <strong>{app.name}</strong>
+              <div className="muted small">{app.domain}</div>
+            </div>
+            <span className="pill pill-green">Connected</span>
+          </div>
+          <p className="muted small">
+            Permission default:{" "}
+            {(() => {
+              const anyPerm = state.permissions.some(
+                (p) => p.aiApplicationId === app.id && p.access !== "ask",
+              );
+              return anyPerm ? "per-profile (see Permissions)" : "Ask on every request";
+            })()}
+          </p>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function Permissions() {
+  return (
+    <>
+      <SectionTitle
+        title="Permissions"
+        subtitle="Control which AI application may access which profile, and under what conditions."
+      />
+      <PermissionsSection />
+    </>
+  );
+}
+
+function PermissionsSection() {
+  const state = useWalletState();
+  if (!state) return null;
+
+  async function setPerm(appId: string, profileId: string, access: string) {
+    const { setAccessLevel } = await import("../shared/permissions");
+    await setAccessLevel(appId, profileId, access as never);
+  }
+
+  return (
+    <Card>
+      <table className="perm-table">
+        <thead>
+          <tr>
+            <th>AI App</th>
+            {state.profiles.map((p) => (
+              <th key={p.id}>{p.icon} {p.name}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {state.aiApplications.map((app) => (
+            <tr key={app.id}>
+              <td><strong>{app.name}</strong></td>
+              {state.profiles.map((p) => {
+                const perm = state.permissions.find(
+                  (x) => x.aiApplicationId === app.id && x.profileId === p.id,
+                );
+                const current = perm?.access ?? "ask";
+                return (
+                  <td key={p.id}>
+                    <select
+                      value={current}
+                      onChange={(e) => void setPerm(app.id, p.id, e.target.value)}
+                    >
+                      <option value="ask">Ask</option>
+                      <option value="allow">Allow</option>
+                      <option value="deny">Deny</option>
+                    </select>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">
+        Ask → show permission modal · Allow → share relevant memories automatically · Deny → never
+        share from that profile.
+      </p>
+    </Card>
+  );
+}
+
+function Requests() {
+  const state = useWalletState();
+  if (!state) return null;
+  const sorted = state.requests.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return (
+    <>
+      <SectionTitle
+        title="Requests"
+        subtitle="Full audit log of every memory access request. Memory content itself is never logged."
+      />
+      <Card>
+        {sorted.length === 0 ? (
+          <p className="empty-hint">No requests logged yet.</p>
+        ) : (
+          <ul className="rows">
+            {sorted.map((r) => {
+              const app = state.aiApplications.find((a) => a.id === r.aiApplicationId);
+              const profile = state.profiles.find((p) => p.id === r.profileId);
+              return (
+                <li key={r.id} className="row request-log-row">
+                  <div className="memory-main">
+                    <span>
+                      <strong>{app?.name ?? r.aiApplicationId}</strong> requested{" "}
+                      <strong>{profile?.name ?? "?"}</strong>
+                      {r.duration ? ` (${r.duration})` : ""}
+                    </span>
+                    <span className="muted small query-preview">“{r.query.slice(0, 120)}”</span>
+                  </div>
+                  <span className="muted small">{relativeTime(r.createdAt)}</span>
+                  <StatusChip status={r.status} />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function Settings() {
+  const state = useWalletState();
+  if (!state) return null;
+  const s = state.settings;
+
+  return (
+    <>
+      <SectionTitle title="Settings" subtitle="Prototype preferences. All data stays in chrome.storage.local." />
+      <div className="stack">
+        <Card>
+          <div className="setting-row">
+            <div>
+              <strong>Local-only mode</strong>
+              <p className="muted small">Your memory stays on this device in this prototype.</p>
+            </div>
+            <Toggle checked disabled />
+          </div>
+          <div className="setting-row">
+            <div>
+              <strong>Automatically send context with your question</strong>
+              <p className="muted small">
+                When approved, the context block and your question are submitted together. Turn off to
+                review before sending.
+              </p>
+            </div>
+            <Toggle
+              checked={s.autoSendContext}
+              onChange={(v) =>
+                void import("../shared/storage").then((st) => st.saveSettings({ autoSendContext: v }))
+              }
+            />
+          </div>
+          <div className="setting-row">
+            <div>
+              <strong>Show wallet button on AI sites</strong>
+              <p className="muted small">
+                A small 🔐 pill on ChatGPT/Claude that re-triggers context sharing for your last
+                question. Useful if auto-detection misses a send.
+              </p>
+            </div>
+            <Toggle
+              checked={s.showToolbarButton}
+              onChange={(v) =>
+                void import("../shared/storage").then((st) => st.saveSettings({ showToolbarButton: v }))
+              }
+            />
+          </div>
+          <div className="setting-row">
+            <div>
+              <strong>Max memories per request</strong>
+              <p className="muted small">How many top-matched memories to include (3–5).</p>
+            </div>
+            <select
+              value={s.maxMemoriesPerRequest}
+              onChange={(e) =>
+                void import("../shared/storage").then((st) =>
+                  st.saveSettings({ maxMemoriesPerRequest: parseInt(e.target.value, 10) }),
+                )
+              }
+            >
+              {[3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        </Card>
+
+        <Card>
+          <h3 className="card-title">Demo data</h3>
+          <p className="muted small">
+            Creates clearly-marked Startup / Work / Personal demo profiles with sample memories and sets
+            Startup as the active profile.
+          </p>
+          <div className="btn-row">
+            <button
+              className="btn btn-primary"
+              onClick={() => void import("../shared/actions").then((a) => a.loadDemoData())}
+            >
+              Load Demo Data
+            </button>
+            <button
+              className="btn danger"
+              onClick={() => {
+                if (window.confirm("Erase ALL profiles, memories, permissions and settings?")) {
+                  void import("../shared/actions").then((a) => a.factoryReset());
+                }
+              }}
+            >
+              Factory reset
+            </button>
+          </div>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+
