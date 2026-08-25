@@ -96,6 +96,7 @@ after changes. Typecheck with `npm run typecheck`.
 | Red status dot in popup | Background worker crashed — open its console via `chrome://extensions`. |
 | "Memory Wallet was reloaded — refresh this tab" toast | Extension was reloaded/updated; refresh the AI tab. |
 | Two stacked cards / deny acted twice (pre-v0.4) | Double content-script injection; fixed via the `__memoryWalletLoaded` guard — update and reload tabs. |
+| Deny/Allow loops back to a new card (pre-v0.4.1) | Our own programmatic re-send was being intercepted; fixed via the `isTrusted` event guard. |
 
 ## Importing your real ChatGPT memory JSON
 
@@ -118,7 +119,7 @@ Click the Memory Wallet icon → **Load Demo Data** → Startup / Work / Persona
 **Option B — your real LIBRO data (47 memories):**
 Dashboard → **Memories** → *Import ChatGPT memory JSON* → import `import-files/startup.json` → Startup (24), `work.json` → Work (17), `personal.json` → Personal (6). Or import `chatgpt-memories.json` whole into any profile. Regenerate splits anytime via `npm run split-memory`.
 
-Then run the 14 steps:
+Then run the 15 steps:
 
 1. Open Memory Wallet (extension icon → green ● = background running).
 2. Confirm **🚀 Startup** profile is active (click it in the popup if not).
@@ -128,12 +129,13 @@ Then run the 14 steps:
 6. Choose **Once** → **Allow** → composer fills with `[Memory Wallet Context]` (previewed memories) + your question and submits as ONE message. ChatGPT answers with your context.
 7. **Wrong profile?** While the card is open, tap another profile chip (e.g. 💼 Work) — the "will share" list swaps instantly. Allow shares from that profile; "Always allow" then targets it.
 8. **Deny test**: ask again → **Deny** (or ✕) → your exact question sends once, unchanged, no context, no lingering card.
-9. Switch to https://claude.ai → ask: *"How should I price and deploy LIBRO for engineering colleges?"*
-10. **Claude triggers its own Memory Request** → see profile, categories, reason, previewed memories, READ ONLY, duration.
-11. **Allow** → same injection flow → context appears in Claude's composer before sending.
-12. Verify retrieval & audit: dashboard → **Requests** → latest entries show which profile was used; click **View** for full query/reason/shared memories; **Copy context** copies the exact block.
-13. Confirm **Claude answers using that context** (mentions Vectorless RAG, Render, white-label etc. from your memories).
-14. **Revoke**: dashboard → **Permissions** → set Claude × Startup to **Deny** → next Claude question sends immediately with no card (logged as Denied).
+9. **Unrelated-question test** ("Should I do Masters?"): **Deny** → sends once, no new card. Then **Allow** → "No relevant memories…" toast → sends once as-is (button reads *Allow (no memory matched)*).
+10. Switch to https://claude.ai → ask: *"How should I price and deploy LIBRO for engineering colleges?"*
+11. **Claude triggers its own Memory Request** → see profile, categories, reason, previewed memories, READ ONLY, duration.
+12. **Allow** → same injection flow → context appears in Claude's composer before sending.
+13. Verify retrieval & audit: dashboard → **Requests** → latest entries show which profile was used; click **View** for full query/reason/shared memories; **Copy context** copies the exact block.
+14. Confirm **Claude answers using that context** (mentions Vectorless RAG, Render, white-label etc. from your memories).
+15. **Revoke**: dashboard → **Permissions** → set Claude × Startup to **Deny** → next Claude question sends immediately with no card (logged as Denied).
 
 ## What works
 
@@ -177,3 +179,4 @@ Then run the 14 steps:
 3. **Permission granularity** — is (app × profile) the right unit, or do users need field-level /
    memory-level allowlists, time-boxed grants, and a proper "session" that survives service-worker
    eviction? This shapes the whole authorization layer.
+

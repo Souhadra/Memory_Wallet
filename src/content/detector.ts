@@ -70,6 +70,10 @@ export class QueryDetector {
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {
+    // Only real user input may be intercepted. Synthetic events (isTrusted
+    // false) include our own programmatic re-sends after Deny/empty-preview;
+    // intercepting those caused an endless pause → card → deny loop.
+    if (!e.isTrusted) return;
     // IME composition (e.g. CJK input) — never touch.
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key !== "Enter") return;
@@ -88,6 +92,7 @@ export class QueryDetector {
   };
 
   private handleClick = (e: MouseEvent): void => {
+    if (!e.isTrusted) return; // never intercept programmatic clicks (our re-sends)
     if (!this.cb.isSendButton(e.target)) return;
 
     const draft = this.cb.getComposerText().trim();

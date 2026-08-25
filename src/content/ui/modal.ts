@@ -213,6 +213,12 @@ export class MemoryRequestModal {
               .join("")}</ul>`
           : `<p class="mw-preview-empty">No relevant memories matched in this profile — your question will be sent as-is if you allow.</p>`;
         zone.innerHTML = `<div class="mw-label">${label}</div>${body}`;
+
+        // Make passthrough explicit on the primary button too.
+        const allowBtn = container.querySelector<HTMLButtonElement>(".mw-btn.mw-allow");
+        if (allowBtn) {
+          allowBtn.textContent = list.length ? "Allow" : "Allow (no memory matched)";
+        }
       }
 
       const finish = (result: DecisionPayload) => {
