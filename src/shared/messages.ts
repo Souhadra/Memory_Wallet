@@ -20,6 +20,12 @@ export interface PreviewMemory {
   category: string;
 }
 
+export interface ProfileChip {
+  id: string;
+  name: string;
+  icon?: string;
+}
+
 /** Background -> Content: show the permission modal. */
 export interface ShowMemoryRequestPayload {
   requestId: string;
@@ -30,8 +36,12 @@ export interface ShowMemoryRequestPayload {
   reason: string;
   /** True when the user's unsent message is being held pending this decision. */
   paused?: boolean;
-  /** Top matching memories that would be shared if you allow (preview, not yet sent). */
-  preview: PreviewMemory[];
+  /** All profiles, so the user can switch before deciding. */
+  profiles: ProfileChip[];
+  /** Profile pre-selected in the card (the active one). */
+  selectedProfileId: string;
+  /** Top matching memories per profile id — preview only, shared after Allow. */
+  previews: Record<string, PreviewMemory[]>;
 }
 
 /** Content -> Background: user made a decision. */
@@ -39,6 +49,8 @@ export interface RequestDecisionPayload {
   requestId: string;
   decision: "deny" | "allow";
   duration: "once" | "session" | "always";
+  /** Profile selected in the card at decision time (may differ from active). */
+  profileId?: string;
 }
 
 /** What the modal resolves with (requestId added by the caller). */

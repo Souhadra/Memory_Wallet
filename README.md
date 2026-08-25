@@ -95,6 +95,7 @@ after changes. Typecheck with `npm run typecheck`.
 | Pill there, nothing happens on send | Check the page console for `[Memory Wallet]` lines; site markup may have changed — selectors live in `src/providers/chatgpt.ts`. |
 | Red status dot in popup | Background worker crashed — open its console via `chrome://extensions`. |
 | "Memory Wallet was reloaded — refresh this tab" toast | Extension was reloaded/updated; refresh the AI tab. |
+| Two stacked cards / deny acted twice (pre-v0.4) | Double content-script injection; fixed via the `__memoryWalletLoaded` guard — update and reload tabs. |
 
 ## Importing your real ChatGPT memory JSON
 
@@ -125,20 +126,22 @@ Then run the 14 steps:
 4. Open https://chatgpt.com → new chat. Type: *"I'm working on my library chatbot LIBRO — what architecture should I use?"*
 5. Press **Enter** — message is paused, 🔐 **Memory Request** appears instantly: profile Startup, categories, reason, READ ONLY, **preview of 3 memories that will be shared** (e.g., `Library Chatbot › Architecture — Vectorless RAG…`), duration.
 6. Choose **Once** → **Allow** → composer fills with `[Memory Wallet Context]` (previewed memories) + your question and submits as ONE message. ChatGPT answers with your context.
-7. Switch to https://claude.ai → ask: *"How should I price and deploy LIBRO for engineering colleges?"*
-8. **Claude triggers its own Memory Request** (same Startup profile, new reason).
-9. See exactly what Claude wants: profile, categories (e.g., work, technical), reason, previewed business-model memories, READ ONLY, duration.
-10. **Allow** → same injection flow → context appears in Claude's composer before sending.
-11. Verify **relevant memories retrieved**: dashboard → **Requests** → latest Claude entry shows *Shared memories (3)*.
-12. Check **context inserted**: click **View** on that request → full query + reason + listed shared memories + copyable `[Memory Wallet Context]` block.
+7. **Wrong profile?** While the card is open, tap another profile chip (e.g. 💼 Work) — the "will share" list swaps instantly. Allow shares from that profile; "Always allow" then targets it.
+8. **Deny test**: ask again → **Deny** (or ✕) → your exact question sends once, unchanged, no context, no lingering card.
+9. Switch to https://claude.ai → ask: *"How should I price and deploy LIBRO for engineering colleges?"*
+10. **Claude triggers its own Memory Request** → see profile, categories, reason, previewed memories, READ ONLY, duration.
+11. **Allow** → same injection flow → context appears in Claude's composer before sending.
+12. Verify retrieval & audit: dashboard → **Requests** → latest entries show which profile was used; click **View** for full query/reason/shared memories; **Copy context** copies the exact block.
 13. Confirm **Claude answers using that context** (mentions Vectorless RAG, Render, white-label etc. from your memories).
-14. **Revoke**: dashboard → **Permissions** → set Claude × Startup to **Deny** → next Claude question sends immediately with no card (denied, logged as Denied; use **Copy context** on old approved requests to still retrieve past shares).
+14. **Revoke**: dashboard → **Permissions** → set Claude × Startup to **Deny** → next Claude question sends immediately with no card (logged as Denied).
 
 ## What works
 
 - **Intercept-at-send flow**: pause message → permission card → allow → context + question sent
-  together; deny/timeout → original question sent unchanged
-- **Preview before you allow**: modal shows the 3 memories that *would* be shared (from keyword + category scoring) so you decide with full transparency
+  together; deny/timeout → original question sent unchanged (exactly once)
+- **Preview before you allow + switch profile in-card**: modal shows the top 3 memories per profile
+  so you can tap a different profile chip and see what *would* be shared before deciding; Allow
+  uses the selected profile (including session/always grants); Deny is one-off
 - Profiles + manual memory CRUD (create/rename/delete profile; add/edit/delete memory)
 - **Import of real ChatGPT memory JSON** into any profile (nested-profile flattener, dedupe,
   category inference) + pre-split `import-files/` for your 47 LIBRO memories

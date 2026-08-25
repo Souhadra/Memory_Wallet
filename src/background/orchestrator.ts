@@ -123,14 +123,14 @@ export async function handleQueryDetected(
   pendingByTab.set(tabId, baseRequest.id);
   await logRequest(baseRequest);
 
-  // Compute a preview of which memories would be shared — shown in the
-  // modal BEFORE the user decides. Preview retrieval stays local; nothing
-  // is sent to the AI until Allow.
-  const previewMemories = await retrieveRelevantMemories(
-    payload.query,
-    activeProfileId,
-    3,
-  );
+  // Pre-compute previews for EVERY profile so the card can switch profiles
+  // instantly. Retrieval is local keyword scoring; nothing is shared until
+  // the user allows.
+  const previews: Record<string, { content: string; category: string }[]> = {};
+  for (const p of profiles) {
+    const mems = await retrieveRelevantMemories(payload.query, p.id, 3);
+    previews[p.id] = mems.map((m) => ({ content: m.content, category: m.category }));
+  }
 
   const showPayload: ShowMemoryRequestPayload = {
     requestId: baseRequest.id,
@@ -141,7 +141,9 @@ export async function handleQueryDetected(
       ? baseRequest.requestedCategories
       : ["other"],
     reason: baseRequest.reason,
-    preview: previewMemories.map((m) => ({ content: m.content, category: m.category })),
+    profiles: profiles.map((p) => ({ id: p.id, name: p.name, icon: p.icon })),
+    selectedProfileId: activeProfileId,
+    previews,
   };
   await sendToTab(tabId, { type: MSG.SHOW_MEMORY_REQUEST, payload: showPayload });
   return { outcome: "needs-approval" };
@@ -213,18 +215,33 @@ export async function handleRequestDecision(
   if (!request || !request.tabId) return;
 
   if (payload.decision === "deny") {
+    // One-off: denies this request only, regardless of selected profile.
     await updateLoggedRequest(request.id, { status: "denied", resolvedAt: nowISO() });
     await sendToTab(request.tabId, { type: MSG.REQUEST_DENIED, payload: { requestId: request.id } });
     return;
   }
 
-  if (payload.duration === "always") {
-    await setAccessLevel(request.aiApplicationId, request.profileId, "allow");
-  } else if (payload.duration === "session") {
-    addSessionGrant(request.aiApplicationId, request.profileId);
+  // Profile override: the user may have switched profiles in the card.
+  let effectiveProfileId = request.profileId;
+  if (payload.profileId && payload.profileId !== request.profileId) {
+    const profiles = await getProfiles();
+    if (profiles.some((p) => p.id === payload.profileId)) {
+      effectiveProfileId = payload.profileId;
+      await updateLoggedRequest(request.id, { profileId: effectiveProfileId });
+    }
   }
 
-  await approveAndInject(request.tabId, request, payload.duration);
+  if (payload.duration === "always") {
+    await setAccessLevel(request.aiApplicationId, effectiveProfileId, "allow");
+  } else if (payload.duration === "session") {
+    addSessionGrant(request.aiApplicationId, effectiveProfileId);
+  }
+
+  await approveAndInject(
+    request.tabId,
+    { ...request, profileId: effectiveProfileId },
+    payload.duration,
+  );
 }
 
 export async function injectIntoOpenTabs(): Promise<void> {

@@ -1,4 +1,4 @@
-import type { ShowMemoryRequestPayload } from "../../shared/messages";
+import type { PreviewMemory, ShowMemoryRequestPayload } from "../../shared/messages";
 
 const STYLE = `
 * { box-sizing: border-box; }
@@ -36,21 +36,21 @@ const STYLE = `
   font-size: 11px; font-weight: 600; letter-spacing: .6px;
   text-transform: uppercase; color: #8b8b98; margin-bottom: 5px;
 }
-.mw-profile {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: #22222c; border: 1px solid #33334133; border-radius: 9px;
-  padding: 7px 12px; font-size: 14px; font-weight: 600;
+.mw-profiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.mw-prof-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #1d1d26; border: 1px solid #2b2b36; border-radius: 999px;
+  padding: 6px 11px; font-size: 12.5px; font-weight: 600; color: #c9c9d4; cursor: pointer;
+  transition: border-color .12s, background .12s;
 }
+.mw-prof-chip:hover { border-color: #3d3d52; }
+.mw-prof-chip.selected { border-color: #6366f1; background: #23233a; color: #fff; }
 .mw-list { margin: 0; padding: 0; list-style: none; }
 .mw-list li {
   font-size: 13.5px; color: #c9c9d4; padding: 3px 0; display: flex; gap: 8px; align-items: center;
 }
 .mw-check { color: #34d399; font-weight: 700; }
-.mw-reason {
-  font-size: 13.5px; color: #b9b9c6; font-style: italic;
-  background: #1d1d26; border-left: 3px solid #6366f1;
-  padding: 8px 12px; border-radius: 0 8px 8px 0;
-}
+.mw-preview-zone { min-height: 20px; }
 .mw-preview { margin: 0; padding: 0; list-style: none; }
 .mw-preview li {
   font-size: 12.5px; color: #a1a1b5; padding: 5px 0;
@@ -63,6 +63,11 @@ const STYLE = `
 }
 .mw-preview-empty {
   font-size: 12.5px; color: #6b7280; font-style: italic; margin: 0;
+}
+.mw-reason {
+  font-size: 13.5px; color: #b9b9c6; font-style: italic;
+  background: #1d1d26; border-left: 3px solid #6366f1;
+  padding: 8px 12px; border-radius: 0 8px 8px 0;
 }
 .mw-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .mw-badge {
@@ -95,11 +100,14 @@ const STYLE = `
 export interface DecisionPayload {
   decision: "deny" | "allow";
   duration: "once" | "session" | "always";
+  /** Profile chip selected at decision time (may differ from active). */
+  profileId?: string;
 }
 
 /**
  * Reusable, self-contained permission modal rendered in a shadow root
- * so host-site styles cannot leak in or out.
+ * so host-site styles cannot leak in or out. Supports switching the
+ * requested profile on the fly — the preview updates instantly.
  */
 export class MemoryRequestModal {
   private host: HTMLDivElement | null = null;
@@ -110,7 +118,10 @@ export class MemoryRequestModal {
 
   show(payload: ShowMemoryRequestPayload): Promise<DecisionPayload> {
     return new Promise((resolve) => {
-      if (this.host) resolve({ decision: "deny", duration: "once" });
+      if (this.host) {
+        resolve({ decision: "deny", duration: "once" });
+        return;
+      }
 
       const host = document.createElement("div");
       host.id = "memory-wallet-request-root";
@@ -121,24 +132,19 @@ export class MemoryRequestModal {
 
       const container = document.createElement("div");
 
+      const profiles =
+        payload.profiles.length > 0
+          ? payload.profiles
+          : [{ id: payload.selectedProfileId, name: payload.profileName, icon: payload.profileIcon }];
+      let selectedProfileId = payload.selectedProfileId;
+      if (!profiles.some((p) => p.id === selectedProfileId)) {
+        selectedProfileId = profiles[0]?.id ?? "";
+      }
+      const previews: Record<string, PreviewMemory[]> = payload.previews ?? {};
+
       const categoryItems = payload.requestedCategories
         .map((c) => `<li><span class="mw-check">✓</span>${labelFor(c)}</li>`)
         .join("");
-
-      const icon = payload.profileIcon ?? "📁";
-      const preview = payload.preview ?? [];
-      const previewHtml = preview.length
-        ? `<ul class="mw-preview">${preview
-            .map(
-              (p) =>
-                `<li>${escapeHtml(truncatePreview(p.content))}<span class="mw-cat">${escapeHtml(p.category)}</span></li>`,
-            )
-            .join("")}</ul>`
-        : `<p class="mw-preview-empty">No relevant memories matched — your question will be sent as-is if you allow.</p>`;
-      const previewLabel =
-        preview.length === 0
-          ? "Would share"
-          : `Will share if you allow — ${preview.length} ${preview.length === 1 ? "memory" : "memories"}`;
 
       container.insertAdjacentHTML(
         "beforeend",
@@ -150,17 +156,21 @@ export class MemoryRequestModal {
               <p class="mw-lede"><b>${escapeHtml(payload.appName)}</b> is requesting access to your memory.</p>
               ${payload.paused ? `<p class="mw-paused-note"><span class="dot">●</span> Your message is paused until you decide.</p>` : ""}
               <div class="mw-section">
-                <div class="mw-label">Profile</div>
-                <div class="mw-profile"><span>${icon}</span>${escapeHtml(payload.profileName)}</div>
+                <div class="mw-label">Profile — tap to switch</div>
+                <div class="mw-profiles">
+                  ${profiles
+                    .map(
+                      (p) =>
+                        `<button type="button" class="mw-prof-chip${p.id === selectedProfileId ? " selected" : ""}" data-pid="${escapeHtml(p.id)}"><span>${p.icon ?? "📁"}</span>${escapeHtml(p.name)}</button>`,
+                    )
+                    .join("")}
+                </div>
               </div>
               <div class="mw-section">
                 <div class="mw-label">Requested information</div>
                 <ul class="mw-list">${categoryItems}</ul>
               </div>
-              <div class="mw-section">
-                <div class="mw-label">${previewLabel}</div>
-                ${previewHtml}
-              </div>
+              <div class="mw-section mw-preview-zone"></div>
               <div class="mw-section">
                 <div class="mw-label">Reason</div>
                 <div class="mw-reason">${escapeHtml(payload.reason)}</div>
@@ -187,6 +197,24 @@ export class MemoryRequestModal {
         `,
       );
 
+      function renderPreview(): void {
+        const zone = container.querySelector(".mw-preview-zone");
+        if (!zone) return;
+        const list = previews[selectedProfileId] ?? [];
+        const label = list.length
+          ? `Will share if you allow — ${list.length} ${list.length === 1 ? "memory" : "memories"}`
+          : "Would share";
+        const body = list.length
+          ? `<ul class="mw-preview">${list
+              .map(
+                (p) =>
+                  `<li>${escapeHtml(truncatePreview(p.content))}<span class="mw-cat">${escapeHtml(p.category)}</span></li>`,
+              )
+              .join("")}</ul>`
+          : `<p class="mw-preview-empty">No relevant memories matched in this profile — your question will be sent as-is if you allow.</p>`;
+        zone.innerHTML = `<div class="mw-label">${label}</div>${body}`;
+      }
+
       const finish = (result: DecisionPayload) => {
         host.remove();
         this.host = null;
@@ -197,6 +225,20 @@ export class MemoryRequestModal {
         (container.querySelector<HTMLInputElement>("input[name='mw-duration']:checked")?.value ??
           "once") as DecisionPayload["duration"];
 
+      renderPreview();
+
+      container.querySelectorAll(".mw-prof-chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const pid = (chip as HTMLElement).dataset.pid ?? "";
+          if (pid === selectedProfileId) return;
+          selectedProfileId = pid;
+          container.querySelectorAll(".mw-prof-chip").forEach((x) =>
+            x.classList.toggle("selected", (x as HTMLElement).dataset.pid === selectedProfileId),
+          );
+          renderPreview();
+        });
+      });
+
       container.querySelectorAll(".mw-duration").forEach((el) => {
         el.addEventListener("click", () => {
           container.querySelectorAll(".mw-duration").forEach((x) => x.classList.remove("selected"));
@@ -204,12 +246,13 @@ export class MemoryRequestModal {
           (el.querySelector("input") as HTMLInputElement).checked = true;
         });
       });
-      container.querySelector(".mw-close")?.addEventListener("click", () => finish({ decision: "deny", duration: durationValue() }));
+      container.querySelector(".mw-close")?.addEventListener("click", () => finish({ decision: "deny", duration: durationValue(), profileId: selectedProfileId }));
       container.querySelectorAll(".mw-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
           finish({
             decision: (btn as HTMLElement).dataset.decision as DecisionPayload["decision"],
             duration: durationValue(),
+            profileId: selectedProfileId,
           });
         });
       });

@@ -10,9 +10,19 @@ import {
   type ShowMemoryRequestPayload,
 } from "../shared/messages";
 
-const provider = activeProvider();
-if (provider) {
-  initContentScript(provider);
+// Guard against double injection: the background re-executes this script on
+// every service-worker cold start, and two live copies would each show their
+// own modal and double-handle decisions. The flag lives in the isolated
+// world for the page's lifetime.
+const w = window as unknown as { __memoryWalletLoaded?: boolean };
+if (!w.__memoryWalletLoaded) {
+  w.__memoryWalletLoaded = true;
+  const provider = activeProvider();
+  if (provider) {
+    initContentScript(provider);
+  }
+} else {
+  console.info("[Memory Wallet] content script already active in this tab");
 }
 
 function initContentScript(provider: AIProviderAdapter): void {
