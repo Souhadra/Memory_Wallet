@@ -1,6 +1,8 @@
-import type { Memory, MemoryCategory } from "./types";
+import type { Memory, MemoryCategory, MemorySource } from "./types";
 import { getMemoriesForProfile, getSettings } from "./storage";
 import { CATEGORY_HINTS, CATEGORY_PRIORITY, QUERY_SYNONYMS } from "./constants";
+import { getVectorsByProfile } from "./vectorStore";
+import { EMBED_MSG } from "./messages";
 
 const STOPWORDS = new Set([
   "a","an","the","and","or","but","if","then","else","for","of","to","in","on","at","by",
@@ -9,6 +11,11 @@ const STOPWORDS = new Set([
   "these","those","what","which","who","whom","how","when","where","why","should","could",
   "would","will","can","use","using","used","am","about","as","into","over","under","not",
 ]);
+
+/** Minimum cosine similarity for a Tier-2 semantic match. */
+const SEMANTIC_THRESHOLD = 0.35;
+/** Never let a cold model delay the permission card. */
+const QUERY_EMBED_TIMEOUT_MS = 800;
 
 export function tokenize(text: string): string[] {
   return text
@@ -46,12 +53,6 @@ function categoryRank(category: MemoryCategory): number {
   return idx === -1 ? CATEGORY_PRIORITY.length : idx;
 }
 
-/**
- * Score a single memory against expanded query tokens.
- * V0 heuristic: keyword overlap weighted by importance + a small boost when
- * the memory's category matches what the query is about. Swap this module
- * for embeddings later without touching callers.
- */
 function scoreMemory(
   memory: Memory,
   queryTokens: string[],
@@ -63,7 +64,6 @@ function scoreMemory(
     for (const t of queryTokens) {
       if (memTokens.has(t)) overlap++;
       else {
-        // Light stemming: plural / simple suffix match.
         for (const m of memTokens) {
           if (m.startsWith(t) || t.startsWith(m)) {
             overlap += 0.5;
@@ -81,22 +81,60 @@ function scoreMemory(
   return score;
 }
 
+function cosine(a: number[], b: number[]): number {
+  if (a.length === 0 || a.length !== b.length) return 0;
+  let dot = 0;
+  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+  // Vectors are L2-normalized at embed time, so dot product == cosine.
+  return dot;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
+/** Ask the background (which routes to the offscreen model host) for one embedding. */
+async function embedQuery(query: string): Promise<number[] | null> {
+  try {
+    if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return null;
+    const res = (await withTimeout(
+      chrome.runtime.sendMessage({ type: EMBED_MSG.EMBED_QUERY, texts: [query] }),
+      QUERY_EMBED_TIMEOUT_MS,
+    )) as { ok?: boolean; vectors?: number[][] } | undefined | null;
+    if (!res?.ok || !res.vectors?.[0]) return null;
+    return res.vectors[0];
+  } catch {
+    return null;
+  }
+}
+
 export interface RetrievedMemory extends Memory {
   score: number;
-  /** True when included as general context rather than a direct match. */
-  fallback?: boolean;
+  /** How this memory was selected: exact word hit, embedding, or general fill. */
+  source: MemorySource;
+}
+
+export interface RetrievalDebug {
+  keyword: number;
+  semantic: number;
+  general: number;
 }
 
 /**
- * Retrieve relevant memories from a single profile.
+ * Hybrid retrieval from a single profile:
  *
- * Tier 1 — direct matches: token/synonym overlap × importance + category boost.
- * Tier 2 — general-context fill: when direct matches are fewer than `limit`
- *          (and the setting allows), fill remaining slots with the profile's
- *          strongest memories (category priority → importance → newest).
- *          These are marked `fallback: true` so the UI can label them honestly.
+ * Tier 1 — keyword: token/synonym overlap × importance + category boost.
+ * Tier 2 — semantic: local embedding cosine similarity (skipped silently
+ *          when the model/index isn't ready or the setting is off).
+ * Tier 3 — general: strongest remaining memories (category priority →
+ *          importance → newest), used to fill remaining slots when allowed.
  *
- * Only call this AFTER the user has approved access.
+ * Every memory carries `source` so previews and the injected block can be
+ * honest about why each item was included. Only call AFTER approval
+ * (previews are computed pre-approval but nothing leaves the device).
  */
 export async function retrieveRelevantMemories(
   query: string,
@@ -110,27 +148,68 @@ export async function retrieveRelevantMemories(
   const hintedCategories = inferCategoriesFromQuery(query);
   const queryTokens = expandTokens(rawTokens);
 
-  const direct = memories
-    .map((m) => ({ ...m, score: scoreMemory(m, queryTokens, hintedCategories) }))
+  // ---- Tier 1: keyword ------------------------------------------------
+  const keywordHits = memories
+    .map((m) => ({ ...m, score: scoreMemory(m, queryTokens, hintedCategories), source: "keyword" as const }))
     .filter((m) => m.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 
-  if (direct.length >= limit || settings.allowGeneralFallback === false) {
-    return direct;
+  const results: RetrievedMemory[] = [...keywordHits];
+
+  // ---- Tier 2: semantic ----------------------------------------------
+  const semanticSlots = limit - results.length;
+  if (semanticSlots > 0 && settings.semanticSearch !== false) {
+    try {
+      const vectors = await getVectorsByProfile(profileId);
+      if (vectors.length > 0) {
+        const queryVector = await embedQuery(query);
+        if (queryVector) {
+          const chosen = new Set(results.map((r) => r.id));
+          const semanticHits = vectors
+            .filter((v) => !chosen.has(v.memoryId))
+            .map((v) => ({ memoryId: v.memoryId, similarity: cosine(queryVector, v.vector) }))
+            .filter((x) => x.similarity >= SEMANTIC_THRESHOLD)
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, limit - results.length);
+
+          for (const hit of semanticHits) {
+            const memory = memories.find((m) => m.id === hit.memoryId);
+            if (memory && !results.some((r) => r.id === memory.id)) {
+              results.push({ ...memory, score: hit.similarity, source: "semantic" });
+            }
+          }
+        }
+      }
+    } catch {
+      // No IndexedDB / no runtime / index not ready — semantic tier skipped.
+    }
   }
 
-  const chosenIds = new Set(direct.map((d) => d.id));
-  const fallbacks = memories
-    .filter((m) => !chosenIds.has(m.id))
-    .sort((a, b) => {
-      const rank = categoryRank(a.category) - categoryRank(b.category);
-      if (rank !== 0) return rank;
-      if (b.importance !== a.importance) return b.importance - a.importance;
-      return b.createdAt.localeCompare(a.createdAt);
-    })
-    .slice(0, limit - direct.length)
-    .map((m) => ({ ...m, score: 0, fallback: true }));
+  // ---- Tier 3: general fill -------------------------------------------
+  if (results.length < limit && settings.allowGeneralFallback !== false) {
+    const chosenIds = new Set(results.map((r) => r.id));
+    const fillers = memories
+      .filter((m) => !chosenIds.has(m.id))
+      .sort((a, b) => {
+        const rank = categoryRank(a.category) - categoryRank(b.category);
+        if (rank !== 0) return rank;
+        if (b.importance !== a.importance) return b.importance - a.importance;
+        return b.createdAt.localeCompare(a.createdAt);
+      })
+      .slice(0, limit - results.length)
+      .map((m) => ({ ...m, score: 0, source: "general" as const }));
+    results.push(...fillers);
+  }
 
-  return [...direct, ...fallbacks];
+  return results;
+}
+
+/** Counts by provenance — used by previews and the requests log. */
+export function countBySource(memories: RetrievedMemory[]): RetrievalDebug {
+  return {
+    keyword: memories.filter((m) => m.source === "keyword").length,
+    semantic: memories.filter((m) => m.source === "semantic").length,
+    general: memories.filter((m) => m.source === "general").length,
+  };
 }

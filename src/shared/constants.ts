@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showToolbarButton: true,
   pauseBeforeShare: true,
   allowGeneralFallback: true,
+  semanticSearch: true,
 };
 
 /** Keywords used to infer which memory categories a user query touches. */

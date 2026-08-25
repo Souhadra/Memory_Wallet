@@ -27,36 +27,41 @@ memplug/
 ├── src/
 │   ├── manifest.json          # MV3 manifest (copied to dist/)
 │   ├── assets/                # generated icons 16/48/128
+│   ├── offscreen/             # hidden page that hosts the local embedding model
+│   │   ├── offscreen.html
+│   │   └── offscreen.ts       # Transformers.js — all-MiniLM-L6-v2, on-device
 │   ├── shared/                # code shared by background, content, popup, options
-│   │   ├── types.ts           # Profile / Memory / AIApplication / Permission / MemoryRequest
-│   │   ├── constants.ts       # storage keys, categories, category keyword hints
-│   │   ├── storage.ts         # chrome.storage.local repos (profiles, memories, permissions…)
-│   │   ├── retrieval.ts       # retrieveRelevantMemories(query, profileId) — swap for embeddings later
+│   │   ├── types.ts           # Profile / Memory / … + MemorySource + Settings
+│   │   ├── constants.ts       # storage keys, categories, synonym map, priority
+│   │   ├── storage.ts         # chrome.storage.local repos
+│   │   ├── retrieval.ts       # hybrid: keyword → semantic → general fallback
+│   │   ├── vectorStore.ts     # IndexedDB vector store for semantic search
+│   │   ├── contextBlock.ts    # builds [Memory Wallet Context] (Matched/Semantic/General)
 │   │   ├── permissions.ts     # get/set per (AI app × profile) access level
-│   │   ├── actions.ts         # CRUD actions used by popup + dashboard (incl. Load Demo Data)
-│   │   ├── messages.ts        # typed runtime message contracts
-│   │   └── demoData.ts        # clearly-marked demo profiles + memories, default AI apps/profiles
+│   │   ├── actions.ts         # CRUD + nested-JSON import
+│   │   ├── messages.ts        # runtime message contracts (incl. EMBED_MSG)
+│   │   └── demoData.ts        # demo profiles + memories
 │   ├── providers/             # AIProviderAdapter abstraction
-│   │   ├── types.ts           # adapter interface (detectPage, detectUserQuery, composer, submit)
+│   │   ├── types.ts           # adapter interface
 │   │   ├── chatgpt.ts
 │   │   ├── claude.ts
 │   │   └── registry.ts
 │   ├── background/
 │   │   ├── index.ts           # service worker entry
 │   │   ├── orchestrator.ts    # permission resolution, request lifecycle, logging
-│   │   └── contextBlock.ts    # builds the [Memory Wallet Context] block
+│   │   └── embeddingService.ts# offscreen lifecycle, index upkeep, status
 │   ├── content/
 │   │   ├── index.ts           # wires detector + modal + injector per provider
-│   │   ├── detector.ts        # detects newly submitted user messages
-│   │   ├── injector.ts        # fills composer with context + question, optional auto-send
+│   │   ├── detector.ts        # send interception + bubble fallback
+│   │   ├── injector.ts        # fills composer, retries, clipboard fallback
 │   │   └── ui/
-│   │       ├── modal.ts       # reusable Shadow-DOM memory request modal
-│   │       └── toast.ts       # status toasts
+│   │       ├── modal.ts       # Shadow-DOM modal (profile chips, live preview)
+│   │       └── toast.ts       # toasts + pill
 │   ├── ui/                    # shared React hooks + formatting helpers
-│   ├── popup/                 # extension popup (React): profiles, recent requests, demo button
-│   └── options/               # full dashboard (React): Overview, Profiles, Memories,
-│                              # AI Apps, Permissions, Requests, Settings
+│   ├── popup/                 # extension popup (React)
+│   └── options/               # full dashboard (React)
 └── dist/                      # build output → load this folder as an unpacked extension
+└── import-files/              # gitignored — your 47 LIBRO memories split by profile (npm run split-memory)
 ```
 
 ## Install locally (Chrome)
@@ -98,6 +103,7 @@ after changes. Typecheck with `npm run typecheck`.
 | Two stacked cards / deny acted twice (pre-v0.4) | Double content-script injection; fixed via the `__memoryWalletLoaded` guard — update and reload tabs. |
 | Deny/Allow loops back to a new card (pre-v0.4.1) | Our own programmatic re-send was being intercepted; fixed via the `isTrusted` event guard. |
 | Card taller than the screen / Allow cut off (pre-v0.5.1) | The card now scrolls internally with Deny/Allow pinned; durations compacted to one row, previews clamp to 2 lines. |
+| Semantic status shows "downloading" forever | One-time ~30MB model download from Hugging Face — needs internet once, cached afterwards; check the offscreen console for errors. |
 
 ## Importing your real ChatGPT memory JSON
 
@@ -146,9 +152,8 @@ Then run the 16 steps:
 - **Preview before you allow + switch profile in-card**: modal shows the top 3 memories per profile
   so you can tap a different profile chip and see what *would* be shared before deciding; Allow
   uses the selected profile (including session/always grants); Deny is one-off
-- **General-context fallback**: when keyword matching finds no direct match ("Should I do
-  Masters?"), requests fill with the profile's strongest memories (education → work → project…),
-  labeled honestly as `General context` in both the preview and the injected block — toggleable in Settings
+- **General-context fallback**: when direct + semantic matching finds no match, requests fill with the profile's strongest memories, labeled honestly — toggleable in Settings
+- **Semantic matching (on-device)**: local embeddings (Transformers.js, all-MiniLM-L6-v2, ~30MB one-time download, cached) as Tier 2 between keyword hits and general fill — toggleable, degrades silently when unavailable; status + controls in Settings
 - Profiles + manual memory CRUD (create/rename/delete profile; add/edit/delete memory)
 - **Import of real ChatGPT memory JSON** into any profile (nested-profile flattener, dedupe,
   category inference) + pre-split `import-files/` for your 47 LIBRO memories
@@ -158,7 +163,7 @@ Then run the 16 steps:
 - Auto-injection of the content script into already-open AI tabs after install/reload
 - Specific permission modal (who / which profile / what info / why / preview / READ ONLY / duration)
 - ASK / ALLOW / DENY per (AI app × profile) + ALLOW ONCE + session grants
-- Keyword-based relevance scoring (`retrieveRelevantMemories`) returning top-N matches
+- Keyword/synonym + semantic + general hybrid scoring (`retrieveRelevantMemories`) returning top-N matches; all tiers local
 - **Request audit log with View + Copy context** — expand any request to see full query, reason, shared memories and copy the exact `[Memory Wallet Context]` block
 - Revoke controls, factory reset, local-only mode (always on), demo data marked as `[demo]`
 
@@ -170,8 +175,7 @@ Then run the 16 steps:
 - Context is delivered via the visible composer (not invisible injection) — intentional and honest.
 - While a memory request is open, pressing Enter again shows "still handling your previous request".
 - Session grants ("This session") reset when the service worker restarts (browser restart).
-- Retrieval is keyword/synonym/category based with an importance-ranked general fallback; no true
-  semantic understanding yet — local embeddings (Transformers.js) are the planned next milestone.
+- Retrieval is hybrid (keyword/synonym → semantic embedding → importance-ranked general fallback), all on-device; needs a one-time ~30MB model download, then works offline.
 - No cross-device sync, no encryption-at-rest beyond Chrome's profile storage, no Gemini.
 
 ## Three decisions to make next
@@ -179,9 +183,7 @@ Then run the 16 steps:
 1. **Context delivery mechanism** — keep visible composer injection (transparent, robust, but
    pollutes the message) vs. clipboard/overlay hand-off vs. pursuing deeper editor integration.
    This defines the product's honesty/UX trade-off.
-2. **Retrieval v1** — move to local embeddings (e.g., Transformers.js/WebGPU, still on-device) while
-   keeping the `retrieveRelevantMemories()` contract, or invest in LLM-assisted relevance only at
-   request time. Decide privacy budget first.
+2. **Semantic quality vs cost** — the local hybrid is now live; next lever is tuning the semantic threshold / fusion order, or trying a larger model vs. keeping the 30MB one for speed.
 3. **Permission granularity** — is (app × profile) the right unit, or do users need field-level /
    memory-level allowlists, time-boxed grants, and a proper "session" that survives service-worker
    eviction? This shapes the whole authorization layer.

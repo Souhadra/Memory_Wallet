@@ -16,12 +16,20 @@ import { getAccessLevel, setAccessLevel } from "../shared/permissions";
 import { inferCategoriesFromQuery, retrieveRelevantMemories } from "../shared/retrieval";
 import {
   MSG,
+  EMBED_MSG,
+  type PreviewMemory,
   type InjectContextPayload,
   type QueryDetectedPayload,
   type RequestDecisionPayload,
   type ShowMemoryRequestPayload,
 } from "../shared/messages";
 import { buildContextBlock } from "../shared/contextBlock";
+import {
+  kickOffIndexing,
+  handleEmbedResult,
+  embedTexts,
+  ensureOffscreen,
+} from "./embeddingService";
 
 /** Grants that last for the browser session and never touch stored permissions. */
 const sessionGrants = new Set<string>();
@@ -75,6 +83,9 @@ export async function handleQueryDetected(
   tabId: number,
   payload: QueryDetectedPayload,
 ): Promise<HandleResult> {
+  // Keep the embedding index in sync (no-op when nothing changed).
+  kickOffIndexing();
+
   if (pendingByTab.has(tabId)) return { outcome: "busy" };
 
   const settings = await getSettings();
@@ -126,13 +137,13 @@ export async function handleQueryDetected(
   // Pre-compute previews for EVERY profile so the card can switch profiles
   // instantly. Retrieval is local keyword scoring + general-context fill;
   // nothing is shared until the user allows.
-  const previews: Record<string, { content: string; category: string; fallback?: boolean }[]> = {};
+  const previews: Record<string, PreviewMemory[]> = {};
   for (const p of profiles) {
     const mems = await retrieveRelevantMemories(payload.query, p.id, 3);
     previews[p.id] = mems.map((m) => ({
       content: m.content,
       category: m.category,
-      fallback: Boolean(m.fallback),
+      source: m.source,
     }));
   }
 
@@ -277,6 +288,17 @@ export async function injectIntoOpenTabs(): Promise<void> {
 export async function initBackground(): Promise<void> {
   await ensureSeeded(DEFAULT_AI_APPS, createDefaultProfiles());
   void injectIntoOpenTabs();
+  // Warm up the semantic index in the background (downloads the model on
+  // first ever run; no-op afterwards). Never blocks anything.
+  kickOffIndexing();
+
+  // Offscreen -> background: route embedding results to waiting callers.
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (handleEmbedResult(message)) {
+      sendResponse({ ok: true });
+    }
+    return false; // synchronous
+  });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
@@ -297,6 +319,39 @@ export async function initBackground(): Promise<void> {
         case MSG.REQUEST_DECISION: {
           await handleRequestDecision(sender.tab?.id ?? -1, message.payload);
           sendResponse({ ok: true });
+          break;
+        }
+        case EMBED_MSG.EMBED_QUERY: {
+          // Offscreen never asks; ignore to prevent loops.
+          if (sender.url?.includes("offscreen")) {
+            sendResponse({ ok: false });
+            break;
+          }
+          const vectors = await embedTexts(message.texts as string[], 4000);
+          sendResponse(vectors ? { ok: true, vectors } : { ok: false });
+          break;
+        }
+        case EMBED_MSG.EMBED_RESULT: {
+          // Already handled by the dedicated listener above.
+          break;
+        }
+        case EMBED_MSG.REBUILD_INDEX: {
+          kickOffIndexing(true);
+          sendResponse({ ok: true, started: true });
+          break;
+        }
+        case EMBED_MSG.CLEAR_MODEL_CACHE: {
+          const ok = await ensureOffscreen();
+          if (!ok) {
+            sendResponse({ ok: false });
+            break;
+          }
+          try {
+            const res = await chrome.runtime.sendMessage({ type: EMBED_MSG.CLEAR_MODEL_CACHE });
+            sendResponse(res ?? { ok: false });
+          } catch {
+            sendResponse({ ok: false });
+          }
           break;
         }
         default:

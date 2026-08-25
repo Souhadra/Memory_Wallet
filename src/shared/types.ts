@@ -62,6 +62,8 @@ export interface MemoryRequest {
   resolvedAt?: string;
 }
 
+export type MemorySource = "keyword" | "semantic" | "general";
+
 export interface Settings {
   localOnlyMode: boolean;
   autoSendContext: boolean;
@@ -71,6 +73,8 @@ export interface Settings {
   pauseBeforeShare: boolean;
   /** When no direct match, fill requests with the profile's strongest memories. */
   allowGeneralFallback: boolean;
+  /** Tier-2 semantic (embedding) matches — degrades silently when unavailable. */
+  semanticSearch: boolean;
 }
 
 export interface WalletState {

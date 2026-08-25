@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWalletState } from "../ui/hooks";
 import { Card, SectionTitle, Toggle } from "./components";
 import { relativeTime } from "../ui/format";
+import { EMBED_MSG } from "../shared/messages";
 
 type SectionId =
   | "overview"
@@ -48,7 +49,7 @@ export function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Local-only prototype · v0.5.1</div>
+        <div className="sidebar-foot">Local-only prototype · v0.6.0</div>
       </aside>
 
       <main className="content">
@@ -708,6 +709,88 @@ function Requests() {
   );
 }
 
+interface EmbedStatus {
+  state?: "idle" | "downloading" | "ready" | "error";
+  pct?: number;
+  indexed?: number;
+  total?: number;
+  error?: string;
+}
+
+function SemanticSearchCard(props: {
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+}) {
+  const [status, setStatus] = useState<EmbedStatus | null>(null);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const read = () => {
+      void chrome.storage.local.get("mw_embed_status").then((res) => {
+        if (mounted) setStatus(res["mw_embed_status"] ?? { state: "idle" });
+      });
+    };
+    read();
+    chrome.storage.onChanged.addListener(read);
+    return () => {
+      mounted = false;
+      chrome.storage.onChanged.removeListener(read);
+    };
+  }, []);
+
+  const s = status ?? { state: "idle" as const };
+  const stateLabel =
+    s.state === "downloading"
+      ? s.pct !== undefined
+        ? `Preparing model… ${s.pct}%`
+        : `Indexing memories… ${s.indexed ?? 0}/${s.total ?? 0}`
+      : s.state === "ready"
+        ? `Ready — ${s.indexed ?? 0} of ${s.total ?? 0} memories indexed`
+        : s.state === "error"
+          ? `Unavailable — retries automatically${s.error ? ` (${s.error})` : ""}`
+          : "Idle — will prepare on next use";
+
+  return (
+    <Card>
+      <h3 className="card-title">Semantic search</h3>
+      <p className="muted small">
+        Matches memories by meaning, not just keywords, using a small AI model that runs entirely
+        on this device. One-time ~30MB model download from Hugging Face, cached locally afterwards.
+        When unavailable, the wallet silently falls back to keyword matching.
+      </p>
+      <div className="setting-row">
+        <div>
+          <strong>Enable semantic matching</strong>
+          <p className="muted small">Status: {stateLabel}</p>
+        </div>
+        <Toggle checked={props.enabled} onChange={props.onToggle} />
+      </div>
+      <div className="btn-row">
+        <button
+          className="btn small"
+          onClick={() => {
+            setMsg("Rebuilding index…");
+            void chrome.runtime.sendMessage({ type: EMBED_MSG.REBUILD_INDEX });
+          }}
+        >
+          Rebuild index
+        </button>
+        <button
+          className="btn small"
+          onClick={() => {
+            setMsg("Clearing model cache…");
+            void chrome.runtime.sendMessage({ type: EMBED_MSG.CLEAR_MODEL_CACHE });
+          }}
+        >
+          Clear model cache
+        </button>
+        {msg && <span className="muted small">{msg}</span>}
+      </div>
+    </Card>
+  );
+}
+
 function Settings() {
   const state = useWalletState();
   if (!state) return null;
@@ -806,6 +889,13 @@ function Settings() {
             </select>
           </div>
         </Card>
+
+        <SemanticSearchCard
+          enabled={s.semanticSearch !== false}
+          onToggle={(v) =>
+            void import("../shared/storage").then((st) => st.saveSettings({ semanticSearch: v }))
+          }
+        />
 
         <Card>
           <h3 className="card-title">Demo data</h3>

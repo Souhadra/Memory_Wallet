@@ -63,11 +63,13 @@ const STYLE = `
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .mw-preview li.general .mw-prev-text { color: #71717a; }
+.mw-preview li.semantic .mw-prev-text { color: #93c5fd; }
 .mw-cat {
   display: inline-block; margin-top: 2px;
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
   color: #818cf8;
 }
+.mw-cat.sem-tag { color: #60a5fa; }
 .mw-cat.gen-tag { color: #fbbf24; }
 .mw-preview-empty {
   font-size: 12.5px; color: #6b7280; font-style: italic; margin: 0;
@@ -213,10 +215,13 @@ export class MemoryRequestModal {
 
       function renderList(items: PreviewMemory[]): string {
         return `<ul class="mw-preview">${items
-          .map(
-            (p) =>
-              `<li${p.fallback ? ' class="general"' : ""}><div class="mw-prev-text">${escapeHtml(truncatePreview(p.content))}</div><span class="mw-cat${p.fallback ? " gen-tag" : ""}">${p.fallback ? "general" : escapeHtml(p.category)}</span></li>`,
-          )
+          .map((p) => {
+            const cls = p.source === "general" ? "general" : p.source === "semantic" ? "semantic" : "";
+            const tagCls = p.source === "general" ? " gen-tag" : p.source === "semantic" ? " sem-tag" : "";
+            const tagText =
+              p.source === "general" || p.source === "semantic" ? p.source : escapeHtml(p.category);
+            return `<li${cls ? ` class="${cls}"` : ""}><div class="mw-prev-text">${escapeHtml(truncatePreview(p.content))}</div><span class="mw-cat${tagCls}">${tagText}</span></li>`;
+          })
           .join("")}</ul>`;
       }
 
@@ -224,8 +229,9 @@ export class MemoryRequestModal {
         const zone = container.querySelector(".mw-preview-zone");
         if (!zone) return;
         const list = previews[selectedProfileId] ?? [];
-        const nMatched = list.filter((p) => !p.fallback).length;
-        const nGeneral = list.length - nMatched;
+        const nKeyword = list.filter((p) => p.source === "keyword").length;
+        const nSemantic = list.filter((p) => p.source === "semantic").length;
+        const nGeneral = list.filter((p) => p.source === "general").length;
 
         let label: string;
         let body: string;
@@ -233,14 +239,23 @@ export class MemoryRequestModal {
         if (list.length === 0) {
           label = "Would share";
           body = `<p class="mw-preview-empty">No relevant memories matched in this profile — your question will be sent as-is if you allow.</p>`;
-        } else if (nMatched > 0 && nGeneral === 0) {
-          label = `Will share if you allow — ${nMatched} matched ${nMatched === 1 ? "memory" : "memories"}`;
+        } else if (nKeyword > 0) {
+          const parts = [
+            `${nKeyword} matched`,
+            nSemantic ? `${nSemantic} semantic` : "",
+            nGeneral ? `${nGeneral} general` : "",
+          ].filter(Boolean);
+          label = `Will share if you allow — ${parts.join(" · ")}`;
           body = renderList(list);
-        } else if (nMatched === 0) {
-          label = `No direct match — sharing ${nGeneral} general ${nGeneral === 1 ? "memory" : "memories"} from this profile`;
+        } else if (nSemantic > 0) {
+          const parts = [
+            `${nSemantic} semantic ${nSemantic === 1 ? "match" : "matches"}`,
+            nGeneral ? `${nGeneral} general` : "",
+          ].filter(Boolean);
+          label = `No keyword match — sharing ${parts.join(" · ")}`;
           body = renderList(list);
         } else {
-          label = `Will share if you allow — ${nMatched} matched · ${nGeneral} general`;
+          label = `No direct match — sharing ${nGeneral} general ${nGeneral === 1 ? "memory" : "memories"} from this profile`;
           body = renderList(list);
         }
 

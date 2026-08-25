@@ -1,3 +1,5 @@
+import type { MemorySource } from "./types";
+
 export const MSG = {
   QUERY_DETECTED: "QUERY_DETECTED",
   SHOW_MEMORY_REQUEST: "SHOW_MEMORY_REQUEST",
@@ -5,6 +7,18 @@ export const MSG = {
   INJECT_CONTEXT: "INJECT_CONTEXT",
   REQUEST_DENIED: "REQUEST_DENIED",
   CANCEL_REQUEST: "CANCEL_REQUEST",
+} as const;
+
+/** Internal embedding-pipeline messages (background <-> offscreen <-> UI). */
+export const EMBED_MSG = {
+  /** Any extension page -> background -> offscreen: embed these texts. */
+  EMBED_QUERY: "MW_EMBED_QUERY",
+  /** Offscreen -> background: vectors for a previous EMBED_QUERY. */
+  EMBED_RESULT: "MW_EMBED_RESULT",
+  /** Dashboard -> background: force a full index rebuild. */
+  REBUILD_INDEX: "MW_REBUILD_INDEX",
+  /** Dashboard -> background -> offscreen: delete cached model files. */
+  CLEAR_MODEL_CACHE: "MW_CLEAR_MODEL_CACHE",
 } as const;
 
 export type MessageType = (typeof MSG)[keyof typeof MSG];
@@ -18,8 +32,8 @@ export interface QueryDetectedPayload {
 export interface PreviewMemory {
   content: string;
   category: string;
-  /** True when included as general context rather than a direct match. */
-  fallback?: boolean;
+  /** How this memory was selected for sharing. */
+  source: MemorySource;
 }
 
 export interface ProfileChip {

@@ -1,28 +1,36 @@
+import type { MemorySource } from "./types";
+
 interface ContextItem {
   content: string;
-  fallback?: boolean;
+  source: MemorySource;
 }
 
+const SECTION_LABELS: Record<MemorySource, string> = {
+  keyword: "Matched memories",
+  semantic: "Semantic matches",
+  general: "General context",
+};
+
 /**
- * Build the block injected into the AI conversation. Direct matches and
- * general-context fillers are labeled separately so the recipient model —
- * and the user reading the composer — can tell them apart.
+ * Build the block injected into the AI conversation. Items are grouped by
+ * provenance so the recipient model — and the user reading the composer —
+ * can tell exact matches, embedding matches, and general fill apart.
  */
 export function buildContextBlock(profileName: string, memories: ContextItem[]): string {
-  const matched = memories.filter((m) => !m.fallback).map((m) => `- ${m.content}`);
-  const general = memories.filter((m) => m.fallback).map((m) => `- ${m.content}`);
-
   const lines: string[] = ["[Memory Wallet Context]", `Profile: ${profileName}`];
-  if (matched.length > 0) {
-    lines.push(matched.length === 1 ? "Matched memory:" : "Matched memories:", ...matched);
+
+  for (const source of ["keyword", "semantic", "general"] as MemorySource[]) {
+    const items = memories.filter((m) => m.source === source);
+    if (items.length === 0) continue;
+    lines.push(SECTION_LABELS[source] + ":");
+    for (const item of items) lines.push(`- ${item.content}`);
   }
-  if (general.length > 0) {
-    lines.push(general.length === 1 ? "General context:" : "General context:", ...general);
-  }
-  if (matched.length === 0 && general.length === 0) {
+
+  if (lines.length === 2) {
     // Should not happen (callers skip empty), but keep the block valid.
     lines.push("(no memories)");
   }
+
   lines.push("[End Memory Wallet Context]");
   return lines.join("\n");
 }

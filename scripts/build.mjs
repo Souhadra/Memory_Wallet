@@ -48,6 +48,29 @@ await build({
   ...(watch ? { watch: {} } : {}),
 });
 
+// Offscreen document: hosts the local embedding model (semantic search).
+// ESM so import.meta / top-level constructs from transformers.js survive.
+await build({
+  ...shared,
+  entryPoints: ["src/offscreen/offscreen.ts"],
+  outfile: "dist/offscreen/offscreen.js",
+  format: "esm",
+  ...(watch ? { watch: {} } : {}),
+});
+
+cpSync("src/offscreen/offscreen.html", join("dist", "offscreen", "offscreen.html"));
+
+// ONNX Runtime wasm binaries are served from the extension itself — no CDN.
+mkdirSync(join("dist", "offscreen", "wasm"), { recursive: true });
+for (const f of [
+  "ort-wasm-simd-threaded.mjs",
+  "ort-wasm-simd-threaded.wasm",
+  "ort-wasm-simd-threaded.jsep.mjs",
+  "ort-wasm-simd-threaded.jsep.wasm",
+]) {
+  cpSync(join("node_modules", "onnxruntime-web", "dist", f), join("dist", "offscreen", "wasm", f));
+}
+
 cpSync("src/manifest.json", join("dist", "manifest.json"));
 cpSync("src/assets", join("dist", "assets"), { recursive: true });
 
