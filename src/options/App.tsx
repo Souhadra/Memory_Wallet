@@ -48,7 +48,7 @@ export function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Local-only prototype · v0.4.1</div>
+        <div className="sidebar-foot">Local-only prototype · v0.5.0</div>
       </aside>
 
       <main className="content">
@@ -753,6 +753,22 @@ function Settings() {
               checked={s.autoSendContext}
               onChange={(v) =>
                 void import("../shared/storage").then((st) => st.saveSettings({ autoSendContext: v }))
+              }
+            />
+          </div>
+          <div className="setting-row">
+            <div>
+              <strong>When nothing matches, share top general memories</strong>
+              <p className="muted small">
+                If keyword matching finds no direct match, fill the request with your profile's
+                strongest context (education, work, projects). The card preview always shows exactly
+                what will be shared.
+              </p>
+            </div>
+            <Toggle
+              checked={s.allowGeneralFallback !== false}
+              onChange={(v) =>
+                void import("../shared/storage").then((st) => st.saveSettings({ allowGeneralFallback: v }))
               }
             />
           </div>

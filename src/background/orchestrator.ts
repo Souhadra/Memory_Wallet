@@ -21,7 +21,7 @@ import {
   type RequestDecisionPayload,
   type ShowMemoryRequestPayload,
 } from "../shared/messages";
-import { buildContextBlock } from "./contextBlock";
+import { buildContextBlock } from "../shared/contextBlock";
 
 /** Grants that last for the browser session and never touch stored permissions. */
 const sessionGrants = new Set<string>();
@@ -124,12 +124,16 @@ export async function handleQueryDetected(
   await logRequest(baseRequest);
 
   // Pre-compute previews for EVERY profile so the card can switch profiles
-  // instantly. Retrieval is local keyword scoring; nothing is shared until
-  // the user allows.
-  const previews: Record<string, { content: string; category: string }[]> = {};
+  // instantly. Retrieval is local keyword scoring + general-context fill;
+  // nothing is shared until the user allows.
+  const previews: Record<string, { content: string; category: string; fallback?: boolean }[]> = {};
   for (const p of profiles) {
     const mems = await retrieveRelevantMemories(payload.query, p.id, 3);
-    previews[p.id] = mems.map((m) => ({ content: m.content, category: m.category }));
+    previews[p.id] = mems.map((m) => ({
+      content: m.content,
+      category: m.category,
+      fallback: Boolean(m.fallback),
+    }));
   }
 
   const showPayload: ShowMemoryRequestPayload = {
@@ -191,7 +195,7 @@ async function approveAndInject(
   const profileName =
     profiles.find((p) => p.id === request.profileId)?.name ?? "Unknown";
 
-  const contextText = buildContextBlock(profileName, memories.map((m) => m.content));
+  const contextText = buildContextBlock(profileName, memories);
 
   await sendToTab(tabId, {
     type: MSG.INJECT_CONTEXT,

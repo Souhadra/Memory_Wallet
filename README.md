@@ -119,7 +119,7 @@ Click the Memory Wallet icon → **Load Demo Data** → Startup / Work / Persona
 **Option B — your real LIBRO data (47 memories):**
 Dashboard → **Memories** → *Import ChatGPT memory JSON* → import `import-files/startup.json` → Startup (24), `work.json` → Work (17), `personal.json` → Personal (6). Or import `chatgpt-memories.json` whole into any profile. Regenerate splits anytime via `npm run split-memory`.
 
-Then run the 15 steps:
+Then run the 16 steps:
 
 1. Open Memory Wallet (extension icon → green ● = background running).
 2. Confirm **🚀 Startup** profile is active (click it in the popup if not).
@@ -129,13 +129,14 @@ Then run the 15 steps:
 6. Choose **Once** → **Allow** → composer fills with `[Memory Wallet Context]` (previewed memories) + your question and submits as ONE message. ChatGPT answers with your context.
 7. **Wrong profile?** While the card is open, tap another profile chip (e.g. 💼 Work) — the "will share" list swaps instantly. Allow shares from that profile; "Always allow" then targets it.
 8. **Deny test**: ask again → **Deny** (or ✕) → your exact question sends once, unchanged, no context, no lingering card.
-9. **Unrelated-question test** ("Should I do Masters?"): **Deny** → sends once, no new card. Then **Allow** → "No relevant memories…" toast → sends once as-is (button reads *Allow (no memory matched)*).
-10. Switch to https://claude.ai → ask: *"How should I price and deploy LIBRO for engineering colleges?"*
-11. **Claude triggers its own Memory Request** → see profile, categories, reason, previewed memories, READ ONLY, duration.
-12. **Allow** → same injection flow → context appears in Claude's composer before sending.
-13. Verify retrieval & audit: dashboard → **Requests** → latest entries show which profile was used; click **View** for full query/reason/shared memories; **Copy context** copies the exact block.
-14. Confirm **Claude answers using that context** (mentions Vectorless RAG, Render, white-label etc. from your memories).
-15. **Revoke**: dashboard → **Permissions** → set Claude × Startup to **Deny** → next Claude question sends immediately with no card (logged as Denied).
+9. **Unrelated-question test** ("Should I do Masters?"): the card shows **"No direct match — sharing N general memories from this profile"** with your education/career entries dimmed and tagged *general* → **Allow** → those flow in as a `General context:` section, so the AI can advise using your real background. **Deny** → sends once, no new card.
+10. Fallback is a setting: dashboard → Settings → "When nothing matches, share top general memories" — turn it OFF to return to share-nothing behavior.
+11. Switch to https://claude.ai → ask: *"How should I price and deploy LIBRO for engineering colleges?"*
+12. **Claude triggers its own Memory Request** → see profile, categories, reason, previewed memories, READ ONLY, duration.
+13. **Allow** → same injection flow → context appears in Claude's composer before sending.
+14. Verify retrieval & audit: dashboard → **Requests** → latest entries show which profile was used; click **View** for full query/reason/shared memories; **Copy context** copies the exact block.
+15. Confirm **Claude answers using that context** (mentions Vectorless RAG, Render, white-label etc. from your memories).
+16. **Revoke**: dashboard → **Permissions** → set Claude × Startup to **Deny** → next Claude question sends immediately with no card (logged as Denied).
 
 ## What works
 
@@ -144,6 +145,9 @@ Then run the 15 steps:
 - **Preview before you allow + switch profile in-card**: modal shows the top 3 memories per profile
   so you can tap a different profile chip and see what *would* be shared before deciding; Allow
   uses the selected profile (including session/always grants); Deny is one-off
+- **General-context fallback**: when keyword matching finds no direct match ("Should I do
+  Masters?"), requests fill with the profile's strongest memories (education → work → project…),
+  labeled honestly as `General context` in both the preview and the injected block — toggleable in Settings
 - Profiles + manual memory CRUD (create/rename/delete profile; add/edit/delete memory)
 - **Import of real ChatGPT memory JSON** into any profile (nested-profile flattener, dedupe,
   category inference) + pre-split `import-files/` for your 47 LIBRO memories
@@ -165,7 +169,8 @@ Then run the 15 steps:
 - Context is delivered via the visible composer (not invisible injection) — intentional and honest.
 - While a memory request is open, pressing Enter again shows "still handling your previous request".
 - Session grants ("This session") reset when the service worker restarts (browser restart).
-- Retrieval is keyword overlap + category hints; no semantic understanding.
+- Retrieval is keyword/synonym/category based with an importance-ranked general fallback; no true
+  semantic understanding yet — local embeddings (Transformers.js) are the planned next milestone.
 - No cross-device sync, no encryption-at-rest beyond Chrome's profile storage, no Gemini.
 
 ## Three decisions to make next
@@ -179,4 +184,5 @@ Then run the 15 steps:
 3. **Permission granularity** — is (app × profile) the right unit, or do users need field-level /
    memory-level allowlists, time-boxed grants, and a proper "session" that survives service-worker
    eviction? This shapes the whole authorization layer.
+
 

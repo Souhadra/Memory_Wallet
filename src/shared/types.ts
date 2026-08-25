@@ -69,6 +69,8 @@ export interface Settings {
   maxMemoriesPerRequest: number;
   showToolbarButton: boolean;
   pauseBeforeShare: boolean;
+  /** When no direct match, fill requests with the profile's strongest memories. */
+  allowGeneralFallback: boolean;
 }
 
 export interface WalletState {

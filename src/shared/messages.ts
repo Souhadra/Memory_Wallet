@@ -18,6 +18,8 @@ export interface QueryDetectedPayload {
 export interface PreviewMemory {
   content: string;
   category: string;
+  /** True when included as general context rather than a direct match. */
+  fallback?: boolean;
 }
 
 export interface ProfileChip {

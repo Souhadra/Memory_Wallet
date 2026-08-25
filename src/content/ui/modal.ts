@@ -57,10 +57,12 @@ const STYLE = `
   border-bottom: 1px solid #1e1e28; line-height: 1.45;
 }
 .mw-preview li:last-child { border-bottom: none; }
+.mw-preview li.general { color: #71717a; }
 .mw-cat {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
   color: #818cf8; margin-left: 6px; vertical-align: middle;
 }
+.mw-cat.gen-tag { color: #fbbf24; }
 .mw-preview-empty {
   font-size: 12.5px; color: #6b7280; font-style: italic; margin: 0;
 }
@@ -201,24 +203,43 @@ export class MemoryRequestModal {
         const zone = container.querySelector(".mw-preview-zone");
         if (!zone) return;
         const list = previews[selectedProfileId] ?? [];
-        const label = list.length
-          ? `Will share if you allow — ${list.length} ${list.length === 1 ? "memory" : "memories"}`
-          : "Would share";
-        const body = list.length
-          ? `<ul class="mw-preview">${list
-              .map(
-                (p) =>
-                  `<li>${escapeHtml(truncatePreview(p.content))}<span class="mw-cat">${escapeHtml(p.category)}</span></li>`,
-              )
-              .join("")}</ul>`
-          : `<p class="mw-preview-empty">No relevant memories matched in this profile — your question will be sent as-is if you allow.</p>`;
+        const nMatched = list.filter((p) => !p.fallback).length;
+        const nGeneral = list.length - nMatched;
+
+        let label: string;
+        let body: string;
+
+        if (list.length === 0) {
+          label = "Would share";
+          body = `<p class="mw-preview-empty">No relevant memories matched in this profile — your question will be sent as-is if you allow.</p>`;
+        } else if (nMatched > 0 && nGeneral === 0) {
+          label = `Will share if you allow — ${nMatched} matched ${nMatched === 1 ? "memory" : "memories"}`;
+          body = renderList(list);
+        } else if (nMatched === 0) {
+          label = `No direct match — sharing ${nGeneral} general ${nGeneral === 1 ? "memory" : "memories"} from this profile`;
+          body = renderList(list);
+        } else {
+          label = `Will share if you allow — ${nMatched} matched · ${nGeneral} general`;
+          body = renderList(list);
+        }
+
         zone.innerHTML = `<div class="mw-label">${label}</div>${body}`;
 
         // Make passthrough explicit on the primary button too.
         const allowBtn = container.querySelector<HTMLButtonElement>(".mw-btn.mw-allow");
         if (allowBtn) {
-          allowBtn.textContent = list.length ? "Allow" : "Allow (no memory matched)";
+          allowBtn.textContent =
+            list.length === 0 ? "Allow (no memory matched)" : "Allow";
         }
+      }
+
+      function renderList(items: PreviewMemory[]): string {
+        return `<ul class="mw-preview">${items
+          .map(
+            (p) =>
+              `<li${p.fallback ? ' class="general"' : ""}>${escapeHtml(truncatePreview(p.content))}<span class="mw-cat${p.fallback ? " gen-tag" : ""}">${p.fallback ? "general" : escapeHtml(p.category)}</span></li>`,
+          )
+          .join("")}</ul>`;
       }
 
       const finish = (result: DecisionPayload) => {
