@@ -123,6 +123,15 @@ export async function handleQueryDetected(
   pendingByTab.set(tabId, baseRequest.id);
   await logRequest(baseRequest);
 
+  // Compute a preview of which memories would be shared — shown in the
+  // modal BEFORE the user decides. Preview retrieval stays local; nothing
+  // is sent to the AI until Allow.
+  const previewMemories = await retrieveRelevantMemories(
+    payload.query,
+    activeProfileId,
+    3,
+  );
+
   const showPayload: ShowMemoryRequestPayload = {
     requestId: baseRequest.id,
     appName,
@@ -132,6 +141,7 @@ export async function handleQueryDetected(
       ? baseRequest.requestedCategories
       : ["other"],
     reason: baseRequest.reason,
+    preview: previewMemories.map((m) => ({ content: m.content, category: m.category })),
   };
   await sendToTab(tabId, { type: MSG.SHOW_MEMORY_REQUEST, payload: showPayload });
   return { outcome: "needs-approval" };

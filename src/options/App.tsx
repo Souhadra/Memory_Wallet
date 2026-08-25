@@ -48,7 +48,7 @@ export function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Local-only prototype · v0.1.0</div>
+        <div className="sidebar-foot">Local-only prototype · v0.3.0</div>
       </aside>
 
       <main className="content">
@@ -587,14 +587,30 @@ function PermissionsSection() {
 
 function Requests() {
   const state = useWalletState();
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   if (!state) return null;
   const sorted = state.requests.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  async function handleCopy(req: (typeof sorted)[number]) {
+    const matched = state!.memories.filter((m) => req.matchedMemoryIds?.includes(m.id));
+    if (matched.length === 0) return;
+    const profile = state!.profiles.find((p) => p.id === req.profileId);
+    const block = `[Memory Wallet Context]\nProfile: ${profile?.name ?? "Unknown"}\n${matched.map((m) => `- ${m.content}`).join("\n")}\n[End Memory Wallet Context]`;
+    try {
+      await navigator.clipboard.writeText(block);
+      setCopied(req.id);
+      setTimeout(() => setCopied((cur) => (cur === req.id ? null : cur)), 2000);
+    } catch {
+      // clipboard blocked
+    }
+  }
 
   return (
     <>
       <SectionTitle
         title="Requests"
-        subtitle="Full audit log of every memory access request. Memory content itself is never logged."
+        subtitle="Full audit log of every memory access request. Memory content itself is never logged — only IDs."
       />
       <Card>
         {sorted.length === 0 ? (
@@ -604,18 +620,84 @@ function Requests() {
             {sorted.map((r) => {
               const app = state.aiApplications.find((a) => a.id === r.aiApplicationId);
               const profile = state.profiles.find((p) => p.id === r.profileId);
+              const matched = state.memories.filter((m) => r.matchedMemoryIds?.includes(m.id));
+              const isExpanded = expanded === r.id;
               return (
-                <li key={r.id} className="row request-log-row">
-                  <div className="memory-main">
-                    <span>
-                      <strong>{app?.name ?? r.aiApplicationId}</strong> requested{" "}
-                      <strong>{profile?.name ?? "?"}</strong>
-                      {r.duration ? ` (${r.duration})` : ""}
+                <li
+                  key={r.id}
+                  className="row request-log-row"
+                  style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div className="memory-main">
+                      <span>
+                        <strong>{app?.name ?? r.aiApplicationId}</strong> requested{" "}
+                        <strong>{profile?.name ?? "?"}</strong>
+                        {r.duration ? ` (${r.duration})` : ""}
+                      </span>
+                      <span className="muted small query-preview">“{r.query.slice(0, 120)}”</span>
+                    </div>
+                    <span className="muted small" style={{ whiteSpace: "nowrap" }}>
+                      {relativeTime(r.createdAt)}
                     </span>
-                    <span className="muted small query-preview">“{r.query.slice(0, 120)}”</span>
+                    <StatusChip status={r.status} />
                   </div>
-                  <span className="muted small">{relativeTime(r.createdAt)}</span>
-                  <StatusChip status={r.status} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button className="btn small" onClick={() => setExpanded(isExpanded ? null : r.id)}>
+                      {isExpanded ? "Hide" : "View"}
+                    </button>
+                    {matched.length > 0 && (
+                      <button className="btn small" onClick={() => void handleCopy(r)}>
+                        {copied === r.id ? "Copied!" : `Copy context (${matched.length})`}
+                      </button>
+                    )}
+                    <span className="muted small" style={{ marginLeft: "auto" }}>
+                      {r.requestedCategories?.length ? r.requestedCategories.join(", ") : ""}
+                    </span>
+                  </div>
+                  {isExpanded && (
+                    <div
+                      style={{
+                        background: "#1d1d26",
+                        border: "1px solid #2b2b36",
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                        fontSize: 12.5,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <div>
+                        <strong>Full query:</strong> <span className="muted">“{r.query}”</span>
+                      </div>
+                      <div>
+                        <strong>Reason:</strong> <span className="muted">{r.reason}</span>
+                      </div>
+                      <div>
+                        <strong>Requested categories:</strong>{" "}
+                        <span className="muted">{r.requestedCategories?.join(", ") || "—"}</span>
+                      </div>
+                      {matched.length > 0 ? (
+                        <div style={{ marginTop: 8 }}>
+                          <strong>Shared memories ({matched.length}):</strong>
+                          <ul style={{ margin: "6px 0 0", paddingLeft: 16 }}>
+                            {matched.map((m) => (
+                              <li key={m.id} style={{ color: "#a1a1b5" }}>
+                                {m.content} <span className="muted small">· {m.category}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="muted small" style={{ marginTop: 8 }}>
+                          No memories were shared for this request.
+                        </div>
+                      )}
+                      <div className="muted small" style={{ marginTop: 8 }}>
+                        ID: {r.id} · {new Date(r.createdAt).toLocaleString()}
+                        {r.resolvedAt ? ` → ${new Date(r.resolvedAt).toLocaleString()}` : ""}
+                      </div>
+                    </div>
+                  )}
                 </li>
               );
             })}

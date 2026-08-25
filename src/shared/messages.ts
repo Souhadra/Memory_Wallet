@@ -15,6 +15,11 @@ export interface QueryDetectedPayload {
   url: string;
 }
 
+export interface PreviewMemory {
+  content: string;
+  category: string;
+}
+
 /** Background -> Content: show the permission modal. */
 export interface ShowMemoryRequestPayload {
   requestId: string;
@@ -25,6 +30,8 @@ export interface ShowMemoryRequestPayload {
   reason: string;
   /** True when the user's unsent message is being held pending this decision. */
   paused?: boolean;
+  /** Top matching memories that would be shared if you allow (preview, not yet sent). */
+  preview: PreviewMemory[];
 }
 
 /** Content -> Background: user made a decision. */

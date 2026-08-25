@@ -111,39 +111,46 @@ or wrapper objects like `{ "memories": [...] }`.
 
 ## Manual test procedure (the 2-minute demo)
 
-1. Click the Memory Wallet icon → popup opens (green ● = background running).
-2. Click **Load Demo Data** → Startup / Work / Personal profiles appear; Startup becomes active.
-3. Open https://chatgpt.com and start a new chat. Type:
-   *"I'm working on my library chatbot LIBRO — what architecture should I use?"*
-4. Press **Enter** — the message does NOT send yet. A 🔐 **Memory Request** card appears instantly
-   with "Your message is paused until you decide": profile, requested info, reason, READ ONLY,
-   duration radios.
-5. Choose **Once** → **Allow** → the composer fills with `[Memory Wallet Context] …` + your
-   question and submits as ONE message. ChatGPT answers using your context.
-6. Open https://claude.ai in another tab. Ask a related question → same flow → your memories
-   travel across AIs.
-7. Back in the popup/dashboard check **Requests**: every request logged (app, profile, outcome).
-8. Revoke: dashboard → **Permissions** → set ChatGPT × Startup to **Deny**. Next question sends
-   normally, no memory shared (denial is logged silently).
-9. Optional: Settings → turn OFF "Ask for memory before my message is sent" to compare with the
-   old after-send behavior.
+**Option A — quick demo (generic data):**
+Click the Memory Wallet icon → **Load Demo Data** → Startup / Work / Personal appear; Startup becomes active.
+
+**Option B — your real LIBRO data (47 memories):**
+Dashboard → **Memories** → *Import ChatGPT memory JSON* → import `import-files/startup.json` → Startup (24), `work.json` → Work (17), `personal.json` → Personal (6). Or import `chatgpt-memories.json` whole into any profile. Regenerate splits anytime via `npm run split-memory`.
+
+Then run the 14 steps:
+
+1. Open Memory Wallet (extension icon → green ● = background running).
+2. Confirm **🚀 Startup** profile is active (click it in the popup if not).
+3. Dashboard → **Memories** → filter Startup → see your LIBRO / Memory Wallet memories (24 in Startup).
+4. Open https://chatgpt.com → new chat. Type: *"I'm working on my library chatbot LIBRO — what architecture should I use?"*
+5. Press **Enter** — message is paused, 🔐 **Memory Request** appears instantly: profile Startup, categories, reason, READ ONLY, **preview of 3 memories that will be shared** (e.g., `Library Chatbot › Architecture — Vectorless RAG…`), duration.
+6. Choose **Once** → **Allow** → composer fills with `[Memory Wallet Context]` (previewed memories) + your question and submits as ONE message. ChatGPT answers with your context.
+7. Switch to https://claude.ai → ask: *"How should I price and deploy LIBRO for engineering colleges?"*
+8. **Claude triggers its own Memory Request** (same Startup profile, new reason).
+9. See exactly what Claude wants: profile, categories (e.g., work, technical), reason, previewed business-model memories, READ ONLY, duration.
+10. **Allow** → same injection flow → context appears in Claude's composer before sending.
+11. Verify **relevant memories retrieved**: dashboard → **Requests** → latest Claude entry shows *Shared memories (3)*.
+12. Check **context inserted**: click **View** on that request → full query + reason + listed shared memories + copyable `[Memory Wallet Context]` block.
+13. Confirm **Claude answers using that context** (mentions Vectorless RAG, Render, white-label etc. from your memories).
+14. **Revoke**: dashboard → **Permissions** → set Claude × Startup to **Deny** → next Claude question sends immediately with no card (denied, logged as Denied; use **Copy context** on old approved requests to still retrieve past shares).
 
 ## What works
 
 - **Intercept-at-send flow**: pause message → permission card → allow → context + question sent
   together; deny/timeout → original question sent unchanged
+- **Preview before you allow**: modal shows the 3 memories that *would* be shared (from keyword + category scoring) so you decide with full transparency
 - Profiles + manual memory CRUD (create/rename/delete profile; add/edit/delete memory)
 - **Import of real ChatGPT memory JSON** into any profile (nested-profile flattener, dedupe,
-  category inference)
+  category inference) + pre-split `import-files/` for your 47 LIBRO memories
 - Active-profile switching in the popup (wallet metaphor)
 - Site detection + send interception for ChatGPT & Claude via provider adapters, with mutation-
   observer fallback and an on-site 🔐 pill for manual re-triggering
 - Auto-injection of the content script into already-open AI tabs after install/reload
-- Specific permission modal (who / which profile / what info / why / read-only / duration)
+- Specific permission modal (who / which profile / what info / why / preview / READ ONLY / duration)
 - ASK / ALLOW / DENY per (AI app × profile) + ALLOW ONCE + session grants
 - Keyword-based relevance scoring (`retrieveRelevantMemories`) returning top-N matches
-- Request audit log, recent requests in popup, revoke controls, factory reset
-- Local-only mode (always on), demo data marked as `[demo]`
+- **Request audit log with View + Copy context** — expand any request to see full query, reason, shared memories and copy the exact `[Memory Wallet Context]` block
+- Revoke controls, factory reset, local-only mode (always on), demo data marked as `[demo]`
 
 ## Known limitations
 

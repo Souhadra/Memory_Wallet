@@ -51,6 +51,19 @@ const STYLE = `
   background: #1d1d26; border-left: 3px solid #6366f1;
   padding: 8px 12px; border-radius: 0 8px 8px 0;
 }
+.mw-preview { margin: 0; padding: 0; list-style: none; }
+.mw-preview li {
+  font-size: 12.5px; color: #a1a1b5; padding: 5px 0;
+  border-bottom: 1px solid #1e1e28; line-height: 1.45;
+}
+.mw-preview li:last-child { border-bottom: none; }
+.mw-cat {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: #818cf8; margin-left: 6px; vertical-align: middle;
+}
+.mw-preview-empty {
+  font-size: 12.5px; color: #6b7280; font-style: italic; margin: 0;
+}
 .mw-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .mw-badge {
   font-size: 11px; font-weight: 700; letter-spacing: .5px;
@@ -113,6 +126,19 @@ export class MemoryRequestModal {
         .join("");
 
       const icon = payload.profileIcon ?? "📁";
+      const preview = payload.preview ?? [];
+      const previewHtml = preview.length
+        ? `<ul class="mw-preview">${preview
+            .map(
+              (p) =>
+                `<li>${escapeHtml(truncatePreview(p.content))}<span class="mw-cat">${escapeHtml(p.category)}</span></li>`,
+            )
+            .join("")}</ul>`
+        : `<p class="mw-preview-empty">No relevant memories matched — your question will be sent as-is if you allow.</p>`;
+      const previewLabel =
+        preview.length === 0
+          ? "Would share"
+          : `Will share if you allow — ${preview.length} ${preview.length === 1 ? "memory" : "memories"}`;
 
       container.insertAdjacentHTML(
         "beforeend",
@@ -130,6 +156,10 @@ export class MemoryRequestModal {
               <div class="mw-section">
                 <div class="mw-label">Requested information</div>
                 <ul class="mw-list">${categoryItems}</ul>
+              </div>
+              <div class="mw-section">
+                <div class="mw-label">${previewLabel}</div>
+                ${previewHtml}
               </div>
               <div class="mw-section">
                 <div class="mw-label">Reason</div>
@@ -208,6 +238,10 @@ function labelFor(category: string): string {
     other: "General context",
   };
   return labels[category] ?? category;
+}
+
+function truncatePreview(text: string, max = 110): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 function escapeHtml(text: string): string {
