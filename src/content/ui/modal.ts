@@ -7,13 +7,16 @@ const STYLE = `
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 .mw-card {
-  width: 360px; background: #16161d; color: #ececf1;
+  width: 360px; max-height: calc(100vh - 32px);
+  display: flex; flex-direction: column;
+  background: #16161d; color: #ececf1;
   border: 1px solid #2e2e3a; border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0,0,0,.5);
   overflow: hidden; animation: mw-in .18s ease-out;
 }
 @keyframes mw-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .mw-head {
+  flex: 0 0 auto;
   display: flex; align-items: center; gap: 8px;
   padding: 14px 16px 10px; font-size: 13px; font-weight: 600; letter-spacing: .2px;
   color: #a5b4fc; text-transform: uppercase;
@@ -23,7 +26,8 @@ const STYLE = `
   font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 6px;
 }
 .mw-close:hover { background: #26262f; color: #ececf1; }
-.mw-body { padding: 0 16px 16px; }
+/* Body scrolls; head/foot stay pinned so Deny/Allow are always reachable. */
+.mw-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 16px 8px; }
 .mw-lede { margin: 0 0 4px; font-size: 15px; line-height: 1.45; color: #ececf1; }
 .mw-lede b { color: #fff; }
 .mw-paused-note {
@@ -52,15 +56,17 @@ const STYLE = `
 .mw-check { color: #34d399; font-weight: 700; }
 .mw-preview-zone { min-height: 20px; }
 .mw-preview { margin: 0; padding: 0; list-style: none; }
-.mw-preview li {
-  font-size: 12.5px; color: #a1a1b5; padding: 5px 0;
-  border-bottom: 1px solid #1e1e28; line-height: 1.45;
-}
+.mw-preview li { padding: 5px 0; border-bottom: 1px solid #1e1e28; }
 .mw-preview li:last-child { border-bottom: none; }
-.mw-preview li.general { color: #71717a; }
+.mw-prev-text {
+  font-size: 12.5px; color: #a1a1b5; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.mw-preview li.general .mw-prev-text { color: #71717a; }
 .mw-cat {
+  display: inline-block; margin-top: 2px;
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
-  color: #818cf8; margin-left: 6px; vertical-align: middle;
+  color: #818cf8;
 }
 .mw-cat.gen-tag { color: #fbbf24; }
 .mw-preview-empty {
@@ -77,15 +83,19 @@ const STYLE = `
   padding: 3px 9px; border-radius: 99px;
   background: #12291f; color: #34d399; border: 1px solid #1e4634;
 }
-.mw-durations { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
+/* Compact segmented duration control. */
+.mw-durations { display: flex; gap: 6px; }
 .mw-duration {
-  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  flex: 1; text-align: center; cursor: pointer;
   background: #1d1d26; border: 1px solid #2b2b36; border-radius: 9px;
-  padding: 8px 11px; font-size: 13px; color: #c9c9d4;
+  padding: 8px 4px; font-size: 12px; font-weight: 600; color: #c9c9d4;
 }
+.mw-duration:hover { border-color: #3d3d52; }
 .mw-duration.selected { border-color: #6366f1; background: #23233a; color: #fff; }
-.mw-duration input { accent-color: #6366f1; }
-.mw-foot { display: flex; gap: 10px; padding: 0 16px 16px; }
+.mw-foot {
+  flex: 0 0 auto; display: flex; gap: 10px;
+  padding: 12px 16px 16px; background: #16161d; border-top: 1px solid #26262f;
+}
 .mw-btn {
   flex: 1; padding: 10px 0; border-radius: 10px; border: none;
   font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .12s;
@@ -94,8 +104,9 @@ const STYLE = `
 .mw-deny { background: #2b2b36; color: #ececf1; }
 .mw-allow { background: #6366f1; color: #fff; }
 .mw-brand {
-  padding: 0 16px 12px; font-size: 11px; color: #55555f;
-  letter-spacing: .3px;
+  flex: 0 0 auto;
+  padding: 0 16px 10px; font-size: 11px; color: #55555f;
+  letter-spacing: .3px; background: #16161d;
 }
 `;
 
@@ -110,6 +121,7 @@ export interface DecisionPayload {
  * Reusable, self-contained permission modal rendered in a shadow root
  * so host-site styles cannot leak in or out. Supports switching the
  * requested profile on the fly — the preview updates instantly.
+ * The card never exceeds the viewport: body scrolls, Deny/Allow stay pinned.
  */
 export class MemoryRequestModal {
   private host: HTMLDivElement | null = null;
@@ -183,9 +195,9 @@ export class MemoryRequestModal {
               <div class="mw-section">
                 <div class="mw-label">Duration</div>
                 <div class="mw-durations">
-                  <label class="mw-duration selected" data-value="once"><input type="radio" name="mw-duration" value="once" checked>Once (this request only)</label>
-                  <label class="mw-duration" data-value="session"><input type="radio" name="mw-duration" value="session">This session</label>
-                  <label class="mw-duration" data-value="always"><input type="radio" name="mw-duration" value="always">Always allow for this profile</label>
+                  <button type="button" class="mw-duration selected" data-value="once" title="Allow for this request only">Once</button>
+                  <button type="button" class="mw-duration" data-value="session" title="Allow until the browser closes">Session</button>
+                  <button type="button" class="mw-duration" data-value="always" title="Always allow this app for this profile">Always</button>
                 </div>
               </div>
             </div>
@@ -198,6 +210,15 @@ export class MemoryRequestModal {
         </div>
         `,
       );
+
+      function renderList(items: PreviewMemory[]): string {
+        return `<ul class="mw-preview">${items
+          .map(
+            (p) =>
+              `<li${p.fallback ? ' class="general"' : ""}><div class="mw-prev-text">${escapeHtml(truncatePreview(p.content))}</div><span class="mw-cat${p.fallback ? " gen-tag" : ""}">${p.fallback ? "general" : escapeHtml(p.category)}</span></li>`,
+          )
+          .join("")}</ul>`;
+      }
 
       function renderPreview(): void {
         const zone = container.querySelector(".mw-preview-zone");
@@ -233,15 +254,6 @@ export class MemoryRequestModal {
         }
       }
 
-      function renderList(items: PreviewMemory[]): string {
-        return `<ul class="mw-preview">${items
-          .map(
-            (p) =>
-              `<li${p.fallback ? ' class="general"' : ""}>${escapeHtml(truncatePreview(p.content))}<span class="mw-cat${p.fallback ? " gen-tag" : ""}">${p.fallback ? "general" : escapeHtml(p.category)}</span></li>`,
-          )
-          .join("")}</ul>`;
-      }
-
       const finish = (result: DecisionPayload) => {
         host.remove();
         this.host = null;
@@ -249,7 +261,7 @@ export class MemoryRequestModal {
       };
 
       const durationValue = (): DecisionPayload["duration"] =>
-        (container.querySelector<HTMLInputElement>("input[name='mw-duration']:checked")?.value ??
+        (container.querySelector<HTMLElement>(".mw-duration.selected")?.dataset.value ??
           "once") as DecisionPayload["duration"];
 
       renderPreview();
@@ -263,6 +275,10 @@ export class MemoryRequestModal {
             x.classList.toggle("selected", (x as HTMLElement).dataset.pid === selectedProfileId),
           );
           renderPreview();
+          // Bring the refreshed preview into view.
+          container
+            .querySelector(".mw-preview-zone")
+            ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
         });
       });
 
@@ -270,7 +286,6 @@ export class MemoryRequestModal {
         el.addEventListener("click", () => {
           container.querySelectorAll(".mw-duration").forEach((x) => x.classList.remove("selected"));
           el.classList.add("selected");
-          (el.querySelector("input") as HTMLInputElement).checked = true;
         });
       });
       container.querySelector(".mw-close")?.addEventListener("click", () => finish({ decision: "deny", duration: durationValue(), profileId: selectedProfileId }));

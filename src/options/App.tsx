@@ -48,7 +48,7 @@ export function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Local-only prototype · v0.5.0</div>
+        <div className="sidebar-foot">Local-only prototype · v0.5.1</div>
       </aside>
 
       <main className="content">

@@ -97,6 +97,7 @@ after changes. Typecheck with `npm run typecheck`.
 | "Memory Wallet was reloaded — refresh this tab" toast | Extension was reloaded/updated; refresh the AI tab. |
 | Two stacked cards / deny acted twice (pre-v0.4) | Double content-script injection; fixed via the `__memoryWalletLoaded` guard — update and reload tabs. |
 | Deny/Allow loops back to a new card (pre-v0.4.1) | Our own programmatic re-send was being intercepted; fixed via the `isTrusted` event guard. |
+| Card taller than the screen / Allow cut off (pre-v0.5.1) | The card now scrolls internally with Deny/Allow pinned; durations compacted to one row, previews clamp to 2 lines. |
 
 ## Importing your real ChatGPT memory JSON
 
