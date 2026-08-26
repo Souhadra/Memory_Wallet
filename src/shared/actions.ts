@@ -96,13 +96,15 @@ export async function setActiveProfile(profileId: string): Promise<void> {
 }
 
 /**
- * Loads clearly-marked demo data. Idempotent: existing demo profiles get
- * their missing memories added, nothing is duplicated by content.
+ * Loads clearly-marked demo data. Safety guard: demo memories are only ever
+ * added to EMPTY profiles — profiles that already contain memories (i.e.
+ * real user data) are left untouched.
  */
 export async function loadDemoData(): Promise<void> {
   const profiles = await getProfiles();
   const memories = await getMemories();
   let startupProfileId: string | null = null;
+  let touched = false;
 
   for (const [name, specs] of Object.entries(DEMO_DATA)) {
     let profile = profiles.find((p) => p.name === name);
@@ -118,11 +120,14 @@ export async function loadDemoData(): Promise<void> {
       };
       profiles.push(profile);
     }
+    const existingProfileMemories = memories.filter((m) => m.profileId === profile.id);
+    if (existingProfileMemories.length > 0) {
+      // Profile has real memories — never mix demo data into it.
+      continue;
+    }
     if (name === "Startup") startupProfileId = profile.id;
 
-    const existingContents = new Set(
-      memories.filter((m) => m.profileId === profile!.id).map((m) => m.content),
-    );
+    const existingContents = new Set(existingProfileMemories.map((m) => m.content));
     for (const spec of specs) {
       if (existingContents.has(spec.content)) continue;
       const t = nowISO();
@@ -135,14 +140,22 @@ export async function loadDemoData(): Promise<void> {
         createdAt: t,
         updatedAt: t,
       });
+      touched = true;
     }
   }
+
+  if (!touched) return; // nothing was empty — do not rewrite storage needlessly
 
   await saveProfiles(profiles);
   await saveMemories(memories);
 
   // Point the wallet at Startup so the demo flow works immediately.
   if (startupProfileId) await saveSettings({ activeProfileId: startupProfileId });
+}
+
+/** Reopen the first-run wizard on next dashboard open (data untouched). */
+export async function reopenOnboarding(): Promise<void> {
+  await saveSettings({ onboardingDone: false });
 }
 
 /** Wipe everything and restore defaults (used by Settings). */

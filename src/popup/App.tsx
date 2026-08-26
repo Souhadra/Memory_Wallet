@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWalletState } from "../ui/hooks";
 import { memoryCountFor, relativeTime } from "../ui/format";
-import { loadDemoData, setActiveProfile } from "../shared/actions";
+import { loadDemoData, reopenOnboarding, setActiveProfile } from "../shared/actions";
 import type { RequestStatus } from "../shared/types";
 
 const STATUS_META: Record<RequestStatus, { label: string; cls: string }> = {
@@ -36,11 +36,21 @@ export function App() {
   }
 
   const activeProfileId = state.settings.activeProfileId;
+  const walletEmpty = state.memories.length === 0;
 
   async function handleLoadDemo() {
     setLoadingDemo(true);
     await loadDemoData();
     setLoadingDemo(false);
+  }
+
+  function openSettings() {
+    void chrome.tabs.create({ url: chrome.runtime.getURL("options/options.html#settings") });
+  }
+
+  async function handleGetStarted() {
+    await reopenOnboarding();
+    chrome.runtime.openOptionsPage();
   }
 
   return (
@@ -53,19 +63,25 @@ export function App() {
             <p>Your AI memory. Your rules.</p>
           </div>
         </div>
-        <div
-          className={`status-dot ${bgOk === true ? "ok" : bgOk === false ? "bad" : ""}`}
-          title={bgOk ? "Wallet background running" : "Background not responding — reload the extension"}
-        >
-          {bgOk === true ? "●" : bgOk === false ? "○" : "◌"}
+        <div className="status" title={bgOk ? "Wallet background running" : "Background not responding — reload the extension"}>
+          <span className={`status-dot ${bgOk === true ? "ok" : bgOk === false ? "bad" : ""}`}>
+            {bgOk === true ? "●" : bgOk === false ? "○" : "◌"}
+          </span>
+          <span className="status-label">{bgOk === false ? "Offline" : "Active"}</span>
         </div>
       </header>
 
-      {state.profiles.length === 0 ? (
+      {walletEmpty ? (
         <section className="empty">
-          <p>No profiles yet.</p>
-          <button className="btn btn-primary" onClick={handleLoadDemo} disabled={loadingDemo}>
-            {loadingDemo ? "Loading…" : "Load Demo Data"}
+          <p className="empty-title">Set up your wallet</p>
+          <p className="muted small center">
+            Import your ChatGPT memory JSON or load sample data to start sharing context with AI apps.
+          </p>
+          <button className="btn btn-primary" onClick={() => void handleGetStarted()}>
+            Get started
+          </button>
+          <button className="btn" onClick={() => void handleLoadDemo()} disabled={loadingDemo}>
+            {loadingDemo ? "Loading…" : "Load sample data"}
           </button>
         </section>
       ) : (
@@ -132,8 +148,8 @@ export function App() {
             <button className="btn btn-primary" onClick={() => chrome.runtime.openOptionsPage()}>
               Open Wallet
             </button>
-            <button className="btn" onClick={handleLoadDemo} disabled={loadingDemo}>
-              {loadingDemo ? "Loading…" : "Load Demo Data"}
+            <button className="btn btn-icon" title="Settings" onClick={openSettings}>
+              ⚙️
             </button>
           </footer>
         </>

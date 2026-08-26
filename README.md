@@ -122,7 +122,7 @@ or wrapper objects like `{ "memories": [...] }`.
 ## Manual test procedure (the 2-minute demo)
 
 **Option A — quick demo (generic data):**
-Click the Memory Wallet icon → **Load Demo Data** → Startup / Work / Personal appear; Startup becomes active.
+Click the Memory Wallet icon → **Load sample data** in the empty-state (or **Get started** → wizard → sample data) → Startup / Work / Personal appear; Startup becomes active.
 
 **Option B — your real LIBRO data (47 memories):**
 Dashboard → **Memories** → *Import ChatGPT memory JSON* → import `import-files/startup.json` → Startup (24), `work.json` → Work (17), `personal.json` → Personal (6). Or import `chatgpt-memories.json` whole into any profile. Regenerate splits anytime via `npm run split-memory`.
@@ -148,6 +148,9 @@ Then run the 16 steps:
 
 ## What works
 
+- **First-run wizard**: fresh wallet opens a 3-step setup — import your real ChatGPT memory JSON
+  (or load sample data, or start empty) → pick the active profile → try-it-live instructions.
+  Skippable; reopenable via Settings → "Run setup again" (data untouched).
 - **Intercept-at-send flow**: pause message → permission card → allow → context + question sent
   together; deny/timeout → original question sent unchanged (exactly once)
 - **Preview before you allow + switch profile in-card**: modal shows the top 3 memories per profile
@@ -158,7 +161,9 @@ Then run the 16 steps:
 - Profiles + manual memory CRUD (create/rename/delete profile; add/edit/delete memory)
 - **Import of real ChatGPT memory JSON** into any profile (nested-profile flattener, dedupe,
   category inference) + pre-split `import-files/` for your 47 LIBRO memories
-- Active-profile switching in the popup (wallet metaphor)
+- Active-profile switching in the popup (wallet metaphor) + on-page pill shows the active profile, live
+- **Popup declutter**: Open Wallet + settings only; sample data offered exclusively while the wallet
+  is empty — demo memories can never mix with real ones
 - Site detection + send interception for ChatGPT & Claude via provider adapters, with mutation-
   observer fallback and an on-site 🔐 pill for manual re-triggering
 - Auto-injection of the content script into already-open AI tabs after install/reload

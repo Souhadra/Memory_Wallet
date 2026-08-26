@@ -25,6 +25,7 @@ const TOAST_STYLE = `
 
 let currentToast: HTMLDivElement | null = null;
 let pillHost: HTMLDivElement | null = null;
+let pillButton: HTMLButtonElement | null = null;
 
 export function showToast(message: string, tone: "info" | "success" | "warn" = "info"): void {
   currentToast?.remove();
@@ -51,8 +52,11 @@ export function showToast(message: string, tone: "info" | "success" | "warn" = "
   }, 5000);
 }
 
-export function showPill(siteName: string): void {
-  if (pillHost) return;
+export function showPill(label: string): void {
+  if (pillHost) {
+    updatePill(label);
+    return;
+  }
   const host = document.createElement("div");
   host.id = "memory-wallet-pill-root";
   const shadow = host.attachShadow({ mode: "open" });
@@ -63,18 +67,26 @@ export function showPill(siteName: string): void {
   const container = document.createElement("div");
   container.insertAdjacentHTML(
     "beforeend",
-    `<button class="mw-pill" title="Memory Wallet — click to request context for your last question">🔐 ${siteName}</button>`,
+    `<button class="mw-pill" title="Memory Wallet — click to request context for your last question"></button>`,
   );
-  container.querySelector("button")?.addEventListener("click", () => {
+  pillButton = container.querySelector("button");
+  pillButton?.addEventListener("click", () => {
     document.dispatchEvent(new CustomEvent("mw-pill-click"));
   });
   shadow.appendChild(container);
 
   document.documentElement.appendChild(host);
   pillHost = host;
+  updatePill(label);
+}
+
+/** Update the pill label without recreating it (e.g. active profile changed). */
+export function updatePill(label: string): void {
+  if (pillButton) pillButton.textContent = `🔐 ${label}`;
 }
 
 export function removePill(): void {
   pillHost?.remove();
   pillHost = null;
+  pillButton = null;
 }

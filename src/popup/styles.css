@@ -51,14 +51,25 @@ body {
   align-items: center;
 }
 
-.status-dot {
+.status {
   margin-left: auto;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-dot {
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .status-dot.ok { color: var(--green); }
 .status-dot.bad { color: var(--red); }
+
+.status-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
 
 .brand-icon {
   font-size: 28px;
@@ -250,6 +261,12 @@ body {
   color: #fff;
 }
 
+.btn-icon {
+  flex: 0 0 auto;
+  width: 42px;
+  padding: 10px 0;
+}
+
 .empty {
   display: flex;
   flex-direction: column;
@@ -258,4 +275,17 @@ body {
   gap: 12px;
   flex: 1;
   color: var(--text-muted);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.center {
+  text-align: center;
+  margin: 0;
+  max-width: 280px;
 }

@@ -25,7 +25,14 @@ const NAV: { id: SectionId; label: string; icon: string }[] = [
 
 export function App() {
   const state = useWalletState();
-  const [section, setSection] = useState<SectionId>("overview");
+  const [forceOnboarding, setForceOnboarding] = useState(false);
+  const [section, setSection] = useState<SectionId>(() => {
+    const h = window.location.hash.replace("#", "");
+    return NAV.some((n) => n.id === h) ? (h as SectionId) : "overview";
+  });
+
+  const showWizard =
+    !!state && (forceOnboarding || (!state.settings.onboardingDone && state.memories.length === 0));
 
   return (
     <div className="dashboard">
@@ -49,12 +56,19 @@ export function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Local-only prototype · v0.6.1</div>
+        <div className="sidebar-foot">Local-only prototype · v0.7.0</div>
       </aside>
 
       <main className="content">
         {!state ? (
           <p className="empty-hint">Loading…</p>
+        ) : showWizard ? (
+          <Onboarding
+            onDone={() => {
+              setForceOnboarding(false);
+              setSection("overview");
+            }}
+          />
         ) : (
           <>
             {section === "overview" && <Overview />}
@@ -63,7 +77,7 @@ export function App() {
             {section === "apps" && <AIApps />}
             {section === "permissions" && <Permissions />}
             {section === "requests" && <Requests />}
-            {section === "settings" && <Settings />}
+            {section === "settings" && <Settings onRunSetup={() => setForceOnboarding(true)} />}
           </>
         )}
       </main>
@@ -133,6 +147,222 @@ export function StatusChip({ status }: { status: "approved" | "denied" | "pendin
   } as const;
   const meta = map[status];
   return <span className={`chip ${meta.cls}`}>{meta.label}</span>;
+}
+
+/* ------------------------------------------------------------------ */
+/* First-run wizard                                                    */
+/* ------------------------------------------------------------------ */
+
+function Onboarding({ onDone }: { onDone: () => void }) {
+  const state = useWalletState();
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [targetProfileId, setTargetProfileId] = useState("__new");
+  const [newProfileName, setNewProfileName] = useState("Personal");
+  const [pickedProfile, setPickedProfile] = useState("");
+
+  if (!state) return null;
+  const profiles = state.profiles;
+
+  async function finish(): Promise<void> {
+    const { saveSettings } = await import("../shared/storage");
+    await saveSettings({ onboardingDone: true });
+    onDone();
+  }
+
+  async function handleImportFile(file: File): Promise<void> {
+    setBusy(true);
+    setMsg("");
+    try {
+      const actions = await import("../shared/actions");
+      const parsed = actions.parseMemoryJson(await file.text());
+      if (parsed.length === 0) {
+        setMsg("Could not find any memories in that file.");
+        return;
+      }
+      let profileId = targetProfileId;
+      if (profileId === "__new") {
+        const name = newProfileName.trim() || "Personal";
+        const existing = profiles.find((p) => p.name.toLowerCase() === name.toLowerCase());
+        profileId = existing ? existing.id : (await actions.createProfile(name)).id;
+      }
+      const res = await actions.importMemoriesIntoProfile(profileId, parsed);
+      setMsg(`Imported ${res.imported} memories into ${profiles.find((p) => p.id === profileId)?.name ?? "profile"}.`);
+      setStep(1);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSample(): Promise<void> {
+    setBusy(true);
+    const actions = await import("../shared/actions");
+    await actions.loadDemoData();
+    setBusy(false);
+    setStep(1);
+  }
+
+  async function handleContinue(): Promise<void> {
+    const id = pickedProfile || profiles[0]?.id;
+    if (id) {
+      const { setActiveProfile } = await import("../shared/actions");
+      await setActiveProfile(id);
+    }
+    setStep(2);
+  }
+
+  return (
+    <div className="wizard">
+      <header className="wizard-head">
+        <h1>🔐 Welcome to Memory Wallet</h1>
+        <p>Your AI memory. Your rules. Three quick steps and you're live.</p>
+      </header>
+
+      <ol className="wizard-steps">
+        {["Your memories", "Active profile", "Try it live"].map((label, i) => (
+          <li key={label} className={i === step ? "current" : i < step ? "done" : ""}>
+            <span className="step-num">{i < step ? "✓" : i + 1}</span> {label}
+          </li>
+        ))}
+      </ol>
+
+      {step === 0 && (
+        <div className="wizard-options">
+          <div className="wizard-option">
+            <div className="wizard-option-head">
+              <strong>Import my ChatGPT memory JSON</strong>
+              <span className="pill">Recommended</span>
+            </div>
+            <p className="muted small">
+              Works with the Manage-memories list or a data export. Nested profile exports are
+              flattened automatically. Parsed and stored locally.
+            </p>
+            <div className="form-row">
+              <select value={targetProfileId} onChange={(e) => setTargetProfileId(e.target.value)}>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.icon} {p.name}
+                  </option>
+                ))}
+                <option value="__new">New profile…</option>
+              </select>
+              {targetProfileId === "__new" && (
+                <input
+                  placeholder="Profile name"
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                />
+              )}
+              <label className="btn btn-primary file-btn">
+                {busy ? "Importing…" : "Choose file"}
+                <input
+                  type="file"
+                  accept=".json,application/json,.txt"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleImportFile(f);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="wizard-option">
+            <div className="wizard-option-head">
+              <strong>Load sample data</strong>
+              <span className="muted small">quick demo</span>
+            </div>
+            <p className="muted small">
+              Creates clearly-marked Startup / Work / Personal profiles with a few sample memories.
+            </p>
+            <button className="btn" disabled={busy} onClick={() => void handleSample()}>
+              Load sample data
+            </button>
+          </div>
+
+          <div className="wizard-option">
+            <div className="wizard-option-head">
+              <strong>Start empty</strong>
+            </div>
+            <p className="muted small">Add memories yourself later in the Memories tab.</p>
+            <button className="btn" onClick={() => setStep(1)}>
+              Continue empty
+            </button>
+          </div>
+
+          {msg && <p className="muted small">{msg}</p>}
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="stack">
+          <p className="muted small">
+            Which profile should AI apps read from by default? You can switch anytime in the popup.
+          </p>
+          <div className="wizard-profiles">
+            {profiles.map((p) => {
+              const count = state.memories.filter((m) => m.profileId === p.id).length;
+              const isActive = state.settings.activeProfileId === p.id;
+              const selected = pickedProfile ? pickedProfile === p.id : isActive;
+              return (
+                <button
+                  key={p.id}
+                  className={`wizard-profile-card ${selected ? "selected" : ""}`}
+                  onClick={() => setPickedProfile(p.id)}
+                >
+                  <span className="profile-big">{p.icon}</span>
+                  <span className="wizard-profile-meta">
+                    <strong>{p.name}</strong>
+                    <span className="muted small">{count} memories</span>
+                  </span>
+                  {selected && <span className="pill">Active</span>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="btn-row">
+            <button className="btn btn-primary" onClick={() => void handleContinue()}>
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <Card>
+          <h3 className="card-title">You're live 🎉</h3>
+          <ol className="wizard-try">
+            <li>Open ChatGPT (or Claude) and start a new chat.</li>
+            <li>
+              Ask something your memories can answer — e.g.{" "}
+              <em>"What architecture should I use for my library chatbot?"</em>
+            </li>
+            <li>Your message pauses and a 🔐 Memory Request card appears. Pick Once → Allow.</li>
+            <li>The context block + your question are sent together — the answer uses your memory.</li>
+          </ol>
+          <div className="btn-row">
+            <button
+              className="btn btn-primary"
+              onClick={() => chrome.tabs.create({ url: "https://chatgpt.com" })}
+            >
+              Open ChatGPT ↗
+            </button>
+            <button className="btn" onClick={() => void finish()}>
+              Finish
+            </button>
+          </div>
+        </Card>
+      )}
+
+      <footer className="wizard-footer">
+        <button className="btn small" onClick={() => void finish()}>
+          Skip setup
+        </button>
+      </footer>
+    </div>
+  );
 }
 
 function Profiles() {
@@ -791,7 +1021,7 @@ function SemanticSearchCard(props: {
   );
 }
 
-function Settings() {
+function Settings({ onRunSetup }: { onRunSetup: () => void }) {
   const state = useWalletState();
   if (!state) return null;
   const s = state.settings;
@@ -898,17 +1128,31 @@ function Settings() {
         />
 
         <Card>
-          <h3 className="card-title">Demo data</h3>
-          <p className="muted small">
-            Creates clearly-marked Startup / Work / Personal demo profiles with sample memories and sets
-            Startup as the active profile.
-          </p>
+          <h3 className="card-title">Sample data</h3>
+          {state.memories.length === 0 ? (
+            <>
+              <p className="muted small">
+                Loads clearly-marked Startup / Work / Personal demo profiles with sample memories and
+                sets Startup as the active profile. Only offered while the wallet is empty.
+              </p>
+              <div className="btn-row">
+                <button
+                  className="btn btn-primary"
+                  onClick={() => void import("../shared/actions").then((a) => a.loadDemoData())}
+                >
+                  Load sample data
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="muted small">
+              Sample data is only offered while the wallet is empty, so demo memories can never mix
+              with real ones. Factory reset clears everything if you want it back.
+            </p>
+          )}
           <div className="btn-row">
-            <button
-              className="btn btn-primary"
-              onClick={() => void import("../shared/actions").then((a) => a.loadDemoData())}
-            >
-              Load Demo Data
+            <button className="btn" onClick={onRunSetup} title="Reopens the first-run wizard; your data is untouched">
+              Run setup again
             </button>
             <button
               className="btn danger"

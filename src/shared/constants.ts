@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pauseBeforeShare: true,
   allowGeneralFallback: true,
   semanticSearch: true,
+  onboardingDone: false,
 };
 
 /** Keywords used to infer which memory categories a user query touches. */

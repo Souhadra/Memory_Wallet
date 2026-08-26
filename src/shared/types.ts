@@ -75,6 +75,8 @@ export interface Settings {
   allowGeneralFallback: boolean;
   /** Tier-2 semantic (embedding) matches — degrades silently when unavailable. */
   semanticSearch: boolean;
+  /** First-run wizard completed (or skipped). */
+  onboardingDone: boolean;
 }
 
 export interface WalletState {
