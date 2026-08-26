@@ -104,6 +104,7 @@ after changes. Typecheck with `npm run typecheck`.
 | Deny/Allow loops back to a new card (pre-v0.4.1) | Our own programmatic re-send was being intercepted; fixed via the `isTrusted` event guard. |
 | Card taller than the screen / Allow cut off (pre-v0.5.1) | The card now scrolls internally with Deny/Allow pinned; durations compacted to one row, previews clamp to 2 lines. |
 | Semantic status shows "downloading" forever | One-time ~30MB model download from Hugging Face — needs internet once, cached afterwards; check the offscreen console for errors. |
+| `SyntaxError: Cannot use 'import.meta' outside a module` (pre-v0.6.1) | Offscreen script was loaded as a classic script; now loaded as a module — update and reload. |
 
 ## Importing your real ChatGPT memory JSON
 
