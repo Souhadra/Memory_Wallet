@@ -205,7 +205,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
   async function handleContinue(): Promise<void> {
     const id =
-      pickedProfile || state.settings.activeProfileId || profiles[0]?.id;
+      pickedProfile || state?.settings.activeProfileId || profiles[0]?.id;
     if (id) {
       const { setActiveProfile } = await import("../shared/actions");
       await setActiveProfile(id);
