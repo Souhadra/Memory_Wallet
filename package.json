@@ -1,6 +1,6 @@
 {
   "name": "memory-wallet",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Memory Wallet - Your AI memory. Your rules. Local-first browser extension prototype.",
   "type": "module",
@@ -23,6 +23,7 @@
     "typescript": "^5.5.4"
   }
 }
+
 
 
 

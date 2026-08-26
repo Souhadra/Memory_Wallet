@@ -92,4 +92,22 @@ writeFileSync(
 </html>`,
 );
 
+// Visual harness: renders the real UI against a stubbed chrome.* store.
+// Open dist/test/ui.html (or ?view=popup) in a browser after building.
+await build({
+  ...shared,
+  entryPoints: ["src/test/harness.tsx"],
+  outdir: "dist/test",
+  jsx: "automatic",
+});
+
+writeFileSync(
+  join("dist", "test", "ui.html"),
+  `<!doctype html>
+<html>
+<head><meta charset="utf-8"><link rel="stylesheet" href="harness.css"><title>Memory Wallet · harness</title></head>
+<body><div id="root"></div><script src="harness.js"></script></body>
+</html>`,
+);
+
 console.log("Build complete → dist/");

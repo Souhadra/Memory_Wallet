@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
+import type { ComponentType } from "react";
 import { useWalletState } from "../ui/hooks";
 import { Card, SectionTitle, Toggle } from "./components";
 import { relativeTime } from "../ui/format";
 import { EMBED_MSG } from "../shared/messages";
+import {
+  IconBot,
+  IconBrain,
+  IconCheck,
+  IconDashboard,
+  IconExternal,
+  IconFolder,
+  IconInbox,
+  IconLock,
+  IconShield,
+  IconSliders,
+  IconSparkle,
+  IconX,
+} from "../ui/icons";
 
 type SectionId =
   | "overview"
@@ -13,14 +28,14 @@ type SectionId =
   | "requests"
   | "settings";
 
-const NAV: { id: SectionId; label: string; icon: string }[] = [
-  { id: "overview", label: "Overview", icon: "◎" },
-  { id: "profiles", label: "Profiles", icon: "🗂" },
-  { id: "memories", label: "Memories", icon: "🧠" },
-  { id: "apps", label: "AI Apps", icon: "🤖" },
-  { id: "permissions", label: "Permissions", icon: "🛡" },
-  { id: "requests", label: "Requests", icon: "📨" },
-  { id: "settings", label: "Settings", icon: "⚙️" },
+const NAV: { id: SectionId; label: string; icon: ComponentType<{ size?: number }> }[] = [
+  { id: "overview", label: "Overview", icon: IconDashboard },
+  { id: "profiles", label: "Profiles", icon: IconFolder },
+  { id: "memories", label: "Memories", icon: IconBrain },
+  { id: "apps", label: "AI Apps", icon: IconBot },
+  { id: "permissions", label: "Permissions", icon: IconShield },
+  { id: "requests", label: "Requests", icon: IconInbox },
+  { id: "settings", label: "Settings", icon: IconSliders },
 ];
 
 export function App() {
@@ -38,7 +53,7 @@ export function App() {
     <div className="dashboard">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-icon">🔐</span>
+          <span className="brand-icon"><IconLock size={22} /></span>
           <div>
             <h1>Memory Wallet</h1>
             <p>Your AI memory. Your rules.</p>
@@ -51,12 +66,12 @@ export function App() {
               className={`nav-item ${section === n.id ? "active" : ""}`}
               onClick={() => setSection(n.id)}
             >
-              <span className="nav-icon">{n.icon}</span>
+              <span className="nav-icon"><n.icon size={16} /></span>
               {n.label}
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Local-only prototype · v0.7.0</div>
+        <div className="sidebar-foot">Local-only prototype · v0.8.0</div>
       </aside>
 
       <main className="content">
@@ -216,14 +231,14 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   return (
     <div className="wizard">
       <header className="wizard-head">
-        <h1>🔐 Welcome to Memory Wallet</h1>
+        <h1>Welcome to Memory Wallet</h1>
         <p>Your AI memory. Your rules. Three quick steps and you're live.</p>
       </header>
 
       <ol className="wizard-steps">
         {["Your memories", "Active profile", "Try it live"].map((label, i) => (
           <li key={label} className={i === step ? "current" : i < step ? "done" : ""}>
-            <span className="step-num">{i < step ? "✓" : i + 1}</span> {label}
+            <span className="step-num">{i < step ? <IconCheck size={11} /> : i + 1}</span> {label}
           </li>
         ))}
       </ol>
@@ -333,14 +348,14 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 
       {step === 2 && (
         <Card>
-          <h3 className="card-title">You're live 🎉</h3>
+          <h3 className="card-title"><IconSparkle size={15} className="title-icon" /> You're live</h3>
           <ol className="wizard-try">
             <li>Open ChatGPT (or Claude) and start a new chat.</li>
             <li>
               Ask something your memories can answer — e.g.{" "}
               <em>"What architecture should I use for my library chatbot?"</em>
             </li>
-            <li>Your message pauses and a 🔐 Memory Request card appears. Pick Once → Allow.</li>
+            <li>Your message pauses and a Memory Request card appears. Pick Once → Allow.</li>
             <li>The context block + your question are sent together — the answer uses your memory.</li>
           </ol>
           <div className="btn-row">
@@ -348,7 +363,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
               className="btn btn-primary"
               onClick={() => chrome.tabs.create({ url: "https://chatgpt.com" })}
             >
-              Open ChatGPT ↗
+              Open ChatGPT <IconExternal size={14} />
             </button>
             <button className="btn" onClick={() => void finish()}>
               Finish
@@ -692,12 +707,13 @@ function MemoriesSection() {
                   </span>
                 </div>
                 <button
-                  className="btn small danger"
+                  className="btn small danger icon-btn"
+                  aria-label="Delete memory"
                   onClick={() => {
                     void import("../shared/actions").then((a) => a.deleteMemory(m.id));
                   }}
                 >
-                  ✕
+                  <IconX size={12} />
                 </button>
               </li>
             );
@@ -729,7 +745,7 @@ function AIAppsSection() {
       {state.aiApplications.map((app) => (
         <Card key={app.id}>
           <div className="profile-card-head">
-            <span className="profile-big">{app.id === "claude" ? "🟠" : app.id === "chatgpt" ? "🟢" : "🤖"}</span>
+            <span className={`app-dot ${app.id}`}>{app.id === "claude" ? "C" : app.id === "chatgpt" ? "G" : <IconBot size={15} />}</span>
             <div className="grow">
               <strong>{app.name}</strong>
               <div className="muted small">{app.domain}</div>

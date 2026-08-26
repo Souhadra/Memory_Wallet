@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useWalletState } from "../ui/hooks";
 import { memoryCountFor, relativeTime } from "../ui/format";
 import { loadDemoData, reopenOnboarding, setActiveProfile } from "../shared/actions";
+import { IconLock, IconSliders } from "../ui/icons";
 import type { RequestStatus } from "../shared/types";
 
 const STATUS_META: Record<RequestStatus, { label: string; cls: string }> = {
@@ -57,16 +58,14 @@ export function App() {
     <div className="popup">
       <header className="header">
         <div className="brand">
-          <span className="brand-icon">🔐</span>
+          <span className="brand-icon"><IconLock size={24} /></span>
           <div>
             <h1>Memory Wallet</h1>
             <p>Your AI memory. Your rules.</p>
           </div>
         </div>
         <div className="status" title={bgOk ? "Wallet background running" : "Background not responding — reload the extension"}>
-          <span className={`status-dot ${bgOk === true ? "ok" : bgOk === false ? "bad" : ""}`}>
-            {bgOk === true ? "●" : bgOk === false ? "○" : "◌"}
-          </span>
+          <span className={`status-dot ${bgOk === true ? "ok" : bgOk === false ? "bad" : ""}`} />
           <span className="status-label">{bgOk === false ? "Offline" : "Active"}</span>
         </div>
       </header>
@@ -148,8 +147,8 @@ export function App() {
             <button className="btn btn-primary" onClick={() => chrome.runtime.openOptionsPage()}>
               Open Wallet
             </button>
-            <button className="btn btn-icon" title="Settings" onClick={openSettings}>
-              ⚙️
+            <button className="btn btn-icon" title="Settings" aria-label="Settings" onClick={openSettings}>
+              <IconSliders size={15} />
             </button>
           </footer>
         </>

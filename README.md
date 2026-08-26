@@ -148,6 +148,11 @@ Then run the 16 steps:
 
 ## What works
 
+- **Designed UI (v0.8)**: shared design tokens, thin-line SVG icon set replacing UI emoji,
+  consistent focus rings/hover states across popup + dashboard + on-page permission card
+  (profile emoji like 🚀 stay — they're user data)
+- **Visual harness**: after building, open `dist/test/ui.html` in a browser — renders the real
+  dashboard and popup (`?view=popup`) against a stubbed store; no extension reload needed
 - **First-run wizard**: fresh wallet opens a 3-step setup — import your real ChatGPT memory JSON
   (or load sample data, or start empty) → pick the active profile → try-it-live instructions.
   Skippable; reopenable via Settings → "Run setup again" (data untouched).

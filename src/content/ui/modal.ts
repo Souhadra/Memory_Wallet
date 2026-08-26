@@ -1,5 +1,6 @@
 import type { PreviewMemory, ShowMemoryRequestPayload } from "../../shared/messages";
 
+/* Mirrors src/ui/tokens.css values literally — shadow DOM can't inherit page CSS vars. */
 const STYLE = `
 * { box-sizing: border-box; }
 .mw-overlay {
@@ -10,9 +11,9 @@ const STYLE = `
   width: 360px; max-height: calc(100vh - 32px);
   display: flex; flex-direction: column;
   background: #16161d; color: #ececf1;
-  border: 1px solid #2e2e3a; border-radius: 14px;
+  border: 1px solid #26262f; border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0,0,0,.5);
-  overflow: hidden; animation: mw-in .18s ease-out;
+  overflow: hidden; animation: mw-in .18s cubic-bezier(.2,.7,.3,1);
 }
 @keyframes mw-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .mw-head {
@@ -21,13 +22,20 @@ const STYLE = `
   padding: 14px 16px 10px; font-size: 13px; font-weight: 600; letter-spacing: .2px;
   color: #a5b4fc; text-transform: uppercase;
 }
+.mw-head svg { color: #a5b4fc; }
 .mw-close {
-  margin-left: auto; background: none; border: none; color: #6b7280;
+  margin-left: auto; background: none; border: none; color: #8b8b98;
   font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 6px;
+  transition: background .12s, color .12s;
 }
 .mw-close:hover { background: #26262f; color: #ececf1; }
+button:focus-visible, .mw-prof-chip:focus-visible, .mw-duration:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,.45);
+}
 /* Body scrolls; head/foot stay pinned so Deny/Allow are always reachable. */
 .mw-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 16px 8px; }
+.mw-body::-webkit-scrollbar { width: 10px; }
+.mw-body::-webkit-scrollbar-thumb { background: #333341; border-radius: 999px; border: 2px solid #16161d; }
 .mw-lede { margin: 0 0 4px; font-size: 15px; line-height: 1.45; color: #ececf1; }
 .mw-lede b { color: #fff; }
 .mw-paused-note {
@@ -43,17 +51,17 @@ const STYLE = `
 .mw-profiles { display: flex; flex-wrap: wrap; gap: 6px; }
 .mw-prof-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  background: #1d1d26; border: 1px solid #2b2b36; border-radius: 999px;
+  background: #1d1d26; border: 1px solid #26262f; border-radius: 999px;
   padding: 6px 11px; font-size: 12.5px; font-weight: 600; color: #c9c9d4; cursor: pointer;
   transition: border-color .12s, background .12s;
 }
-.mw-prof-chip:hover { border-color: #3d3d52; }
+.mw-prof-chip:hover { border-color: #333341; }
 .mw-prof-chip.selected { border-color: #6366f1; background: #23233a; color: #fff; }
 .mw-list { margin: 0; padding: 0; list-style: none; }
 .mw-list li {
   font-size: 13.5px; color: #c9c9d4; padding: 3px 0; display: flex; gap: 8px; align-items: center;
 }
-.mw-check { color: #34d399; font-weight: 700; }
+.mw-check { color: #34d399; font-weight: 700; display: inline-flex; flex: 0 0 auto; }
 .mw-preview-zone { min-height: 20px; }
 .mw-preview { margin: 0; padding: 0; list-style: none; }
 .mw-preview li { padding: 5px 0; border-bottom: 1px solid #1e1e28; }
@@ -89,10 +97,11 @@ const STYLE = `
 .mw-durations { display: flex; gap: 6px; }
 .mw-duration {
   flex: 1; text-align: center; cursor: pointer;
-  background: #1d1d26; border: 1px solid #2b2b36; border-radius: 9px;
+  background: #1d1d26; border: 1px solid #26262f; border-radius: 9px;
   padding: 8px 4px; font-size: 12px; font-weight: 600; color: #c9c9d4;
+  transition: border-color .12s, background .12s;
 }
-.mw-duration:hover { border-color: #3d3d52; }
+.mw-duration:hover { border-color: #333341; }
 .mw-duration.selected { border-color: #6366f1; background: #23233a; color: #fff; }
 .mw-foot {
   flex: 0 0 auto; display: flex; gap: 10px;
@@ -100,10 +109,12 @@ const STYLE = `
 }
 .mw-btn {
   flex: 1; padding: 10px 0; border-radius: 10px; border: none;
-  font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .12s;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: filter .12s, background .12s;
 }
 .mw-btn:hover { filter: brightness(1.12); }
 .mw-deny { background: #2b2b36; color: #ececf1; }
+.mw-deny:hover { background: #333341; filter: none; }
 .mw-allow { background: #6366f1; color: #fff; }
 .mw-brand {
   flex: 0 0 auto;
@@ -111,6 +122,17 @@ const STYLE = `
   letter-spacing: .3px; background: #16161d;
 }
 `;
+
+/** Thin-line inline SVG for shadow-DOM templates. */
+function svgIcon(name: "lock" | "x" | "check", size = 14): string {
+  const paths: Record<string, string> = {
+    lock:
+      '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+  };
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
+}
 
 export interface DecisionPayload {
   decision: "deny" | "allow";
@@ -159,7 +181,7 @@ export class MemoryRequestModal {
       const previews: Record<string, PreviewMemory[]> = payload.previews ?? {};
 
       const categoryItems = payload.requestedCategories
-        .map((c) => `<li><span class="mw-check">✓</span>${labelFor(c)}</li>`)
+        .map((c) => `<li><span class="mw-check">${svgIcon("check", 13)}</span>${labelFor(c)}</li>`)
         .join("");
 
       container.insertAdjacentHTML(
@@ -167,7 +189,7 @@ export class MemoryRequestModal {
         `
         <div class="mw-overlay">
           <div class="mw-card" role="dialog" aria-label="Memory Wallet access request">
-            <div class="mw-head">🔐 Memory Request <button class="mw-close" title="Deny and close">✕</button></div>
+            <div class="mw-head">${svgIcon("lock")} Memory Request <button class="mw-close" title="Deny and close">${svgIcon("x", 13)}</button></div>
             <div class="mw-body">
               <p class="mw-lede"><b>${escapeHtml(payload.appName)}</b> is requesting access to your memory.</p>
               ${payload.paused ? `<p class="mw-paused-note"><span class="dot">●</span> Your message is paused until you decide.</p>` : ""}
