@@ -6,3 +6,5 @@ scripts/.actions.mjs
 # Personal data — never commit
 chatgpt-memories.json
 import-files/
+
+dist.zip

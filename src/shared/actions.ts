@@ -41,6 +41,7 @@ export async function updateProfile(id: string, patch: Partial<Profile>): Promis
 
 export async function deleteProfile(id: string): Promise<void> {
   const [profiles, memories] = await Promise.all([getProfiles(), getMemories()]);
+  const doomedIds = memories.filter((m) => m.profileId === id).map((m) => m.id);
   const remaining = profiles.filter((p) => p.id !== id);
   await saveProfiles(remaining);
   await saveMemories(memories.filter((m) => m.profileId !== id));
@@ -53,6 +54,15 @@ export async function deleteProfile(id: string): Promise<void> {
   const settings = await getSettings();
   if (settings.activeProfileId === id) {
     await saveSettings({ activeProfileId: remaining[0]?.id ?? null });
+  }
+
+  if (doomedIds.length > 0) {
+    try {
+      const { deleteVectors } = await import("./vectorStore");
+      await deleteVectors(doomedIds);
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -89,6 +99,12 @@ export async function updateMemory(id: string, patch: Partial<Memory>): Promise<
 export async function deleteMemory(id: string): Promise<void> {
   const memories = await getMemories();
   await saveMemories(memories.filter((m) => m.id !== id));
+  try {
+    const { deleteVectors } = await import("./vectorStore");
+    await deleteVectors([id]);
+  } catch {
+    // ignore (IndexedDB unavailable)
+  }
 }
 
 export async function setActiveProfile(profileId: string): Promise<void> {

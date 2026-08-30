@@ -7,7 +7,12 @@ import type {
   Profile,
   WalletState,
 } from "./types";
-import { DEFAULT_SETTINGS, STORAGE_KEYS } from "./constants";
+import {
+  DEFAULT_SETTINGS,
+  STORAGE_KEYS,
+  STORAGE_VERSION,
+  STORAGE_VERSION_KEY,
+} from "./constants";
 
 async function get<T>(key: string, fallback: T): Promise<T> {
   const result = await chrome.storage.local.get(key);
@@ -15,7 +20,34 @@ async function get<T>(key: string, fallback: T): Promise<T> {
 }
 
 async function set<T>(key: string, value: T): Promise<void> {
-  await chrome.storage.local.set({ [key]: value });
+  try {
+    await chrome.storage.local.set({ [key]: value });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("QUOTA_BYTES") || msg.toLowerCase().includes("quota")) {
+      console.error("[Memory Wallet] storage quota exceeded for", key, e);
+      throw new Error("Storage quota exceeded — try deleting some memories or profiles.");
+    }
+    throw e;
+  }
+}
+
+/** Backfill missing settings keys after upgrades (no data loss). */
+export async function migrateIfNeeded(): Promise<void> {
+  const raw = await chrome.storage.local.get(STORAGE_VERSION_KEY);
+  const current = (raw[STORAGE_VERSION_KEY] as number | undefined) ?? 0;
+  if (current >= STORAGE_VERSION) return;
+
+  // v0 → v1: ensure every DEFAULT_SETTINGS key exists.
+  const existing = await get<Partial<WalletState["settings"]>>(STORAGE_KEYS.settings, {});
+  const merged = { ...DEFAULT_SETTINGS, ...existing };
+  // Only write if something was missing.
+  const needsWrite = Object.keys(DEFAULT_SETTINGS).some(
+    (k) => (existing as Record<string, unknown>)[k] === undefined,
+  );
+  if (needsWrite) await set(STORAGE_KEYS.settings, merged);
+
+  await chrome.storage.local.set({ [STORAGE_VERSION_KEY]: STORAGE_VERSION });
 }
 
 export async function getProfiles(): Promise<Profile[]> {
@@ -61,7 +93,8 @@ export async function saveRequests(requests: MemoryRequest[]): Promise<void> {
 }
 
 export async function getSettings() {
-  return get(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
+  const raw = await get<Partial<WalletState["settings"]>>(STORAGE_KEYS.settings, {});
+  return { ...DEFAULT_SETTINGS, ...raw } as WalletState["settings"];
 }
 export async function saveSettings(settings: Partial<WalletState["settings"]>) {
   const current = await getSettings();
@@ -94,5 +127,16 @@ export async function ensureSeeded(defaultApps: AIApplication[], defaultProfiles
 }
 
 export async function clearAllData(): Promise<void> {
-  await chrome.storage.local.remove(Object.values(STORAGE_KEYS));
+  await chrome.storage.local.remove([...Object.values(STORAGE_KEYS), STORAGE_VERSION_KEY, "mw_embed_status"]);
+  try {
+    const { clearVectorStore } = await import("./vectorStore");
+    await clearVectorStore();
+  } catch {
+    // IndexedDB may be unavailable (e.g. harness stub) — ignore.
+  }
+  try {
+    indexedDB.deleteDatabase("memory-wallet-embeddings");
+  } catch {
+    // ignore
+  }
 }

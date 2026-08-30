@@ -31,6 +31,9 @@ export const CATEGORY_LABELS: Record<MemoryCategory, string> = {
   other: "Other",
 };
 
+export const STORAGE_VERSION = 1;
+export const STORAGE_VERSION_KEY = "mw_storage_version";
+
 export const DEFAULT_SETTINGS: Settings = {
   localOnlyMode: true,
   autoSendContext: true,
@@ -38,7 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxMemoriesPerRequest: 5,
   showToolbarButton: true,
   pauseBeforeShare: true,
-  allowGeneralFallback: true,
+  allowGeneralFallback: false,
   semanticSearch: true,
   onboardingDone: false,
 };

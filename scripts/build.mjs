@@ -1,16 +1,18 @@
 import { build } from "esbuild";
-import { cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 
 const watch = process.argv.includes("--watch");
+const isProd = process.argv.includes("--production");
 
 mkdirSync("dist", { recursive: true });
 
 /** @type {import('esbuild').BuildOptions} */
 const shared = {
   bundle: true,
-  minify: false,
-  sourcemap: "inline",
+  minify: isProd,
+  sourcemap: isProd ? false : "inline",
   logLevel: "info",
   target: ["chrome120"],
 };
@@ -110,4 +112,28 @@ writeFileSync(
 </html>`,
 );
 
-console.log("Build complete → dist/");
+console.log(`Build complete → dist/ ${isProd ? "(production)" : ""}`);
+
+if (process.argv.includes("--zip")) {
+  const tmp = join("dist-store");
+  if (existsSync(tmp)) rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(tmp, { recursive: true });
+  // Copy everything except dist/test (harness must not be in store zip)
+  cpSync("dist", tmp, {
+    recursive: true,
+    filter: (src) => !src.replaceAll("\\", "/").includes("/test") && !src.endsWith("/test"),
+  });
+  // Remove test folder if it slipped through
+  const testInTmp = join(tmp, "test");
+  if (existsSync(testInTmp)) rmSync(testInTmp, { recursive: true, force: true });
+  try {
+    if (process.platform === "win32") {
+      execSync(`powershell -Command "Compress-Archive -Path '${tmp}\\*' -DestinationPath 'dist.zip' -Force"`, { stdio: "inherit" });
+    } else {
+      execSync(`zip -r dist.zip ${tmp}/*`, { stdio: "inherit" });
+    }
+    console.log("Store zip → dist.zip (excludes test harness)");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}

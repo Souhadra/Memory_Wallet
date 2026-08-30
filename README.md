@@ -2,7 +2,7 @@
 
 > **Your AI memory. Your rules.**
 
-A local-first browser extension prototype that lets you own the memory you share with AI
+A local-first browser extension that lets you own the memory you share with AI
 applications. Profiles act as context boundaries; AI apps must *request* access, and you decide.
 
 **How it works on ChatGPT/Claude:** when you press Enter or click Send, your message is paused,
@@ -10,8 +10,7 @@ a permission card appears instantly, and only after you ALLOW does `[Memory Wall
 + your question go out together — so the answer is generated *with* your memory. DENY sends
 your original question unchanged.
 
-This is a validation prototype — not a production product. Everything is stored in
-`chrome.storage.local` on your device. There is no backend, no auth, no analytics, no network calls.
+Everything is stored in `chrome.storage.local` on your device. There is no backend, no auth, no analytics. The only network request is a one-time download of the local embedding model from Hugging Face (see [Privacy Policy](docs/PRIVACY.md)).
 
 ---
 

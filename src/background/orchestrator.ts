@@ -10,6 +10,7 @@ import {
   getProfiles,
   getRequests,
   getSettings,
+  migrateIfNeeded,
   saveRequests,
 } from "../shared/storage";
 import { getAccessLevel, setAccessLevel } from "../shared/permissions";
@@ -83,85 +84,91 @@ export async function handleQueryDetected(
   tabId: number,
   payload: QueryDetectedPayload,
 ): Promise<HandleResult> {
-  // Keep the embedding index in sync (no-op when nothing changed).
-  kickOffIndexing();
+  try {
+    // Keep the embedding index in sync (no-op when nothing changed).
+    kickOffIndexing();
 
-  if (pendingByTab.has(tabId)) return { outcome: "busy" };
+    if (pendingByTab.has(tabId)) return { outcome: "busy" };
 
-  const settings = await getSettings();
-  const activeProfileId = settings.activeProfileId;
-  if (!activeProfileId) return { outcome: "no-profile" };
+    const settings = await getSettings();
+    const activeProfileId = settings.activeProfileId;
+    if (!activeProfileId) return { outcome: "no-profile" };
 
-  const apps = await getAIApplications();
-  const app = apps.find((a) => a.id === payload.appId);
-  const appName = app?.name ?? payload.appId;
+    const apps = await getAIApplications();
+    const app = apps.find((a) => a.id === payload.appId);
+    const appName = app?.name ?? payload.appId;
 
-  const access = await getAccessLevel(payload.appId, activeProfileId);
+    const access = await getAccessLevel(payload.appId, activeProfileId);
 
-  const baseRequest: MemoryRequest = {
-    id: uid("req"),
-    tabId,
-    aiApplicationId: payload.appId,
-    profileId: activeProfileId,
-    query: payload.query,
-    requestedCategories: inferRequestedCategories(payload.query),
-    reason: `Help answer your question: "${truncate(payload.query, 80)}"`,
-    status: "pending",
-    duration: null,
-    matchedMemoryIds: null,
-    createdAt: nowISO(),
-  };
-
-  if (access === "deny") {
-    await logRequest({ ...baseRequest, status: "denied", resolvedAt: nowISO() });
-    return { outcome: "denied" };
-  }
-
-  // ALLOW permission or a standing session grant -> serve silently.
-  if (access === "allow" || hasSessionGrant(payload.appId, activeProfileId)) {
-    await approveAndInject(
+    const baseRequest: MemoryRequest = {
+      id: uid("req"),
       tabId,
-      { ...baseRequest, status: "approved", resolvedAt: nowISO() },
-      access === "allow" ? "always" : "session",
-    );
-    return { outcome: "auto-approved" };
+      aiApplicationId: payload.appId,
+      profileId: activeProfileId,
+      query: payload.query,
+      requestedCategories: inferRequestedCategories(payload.query),
+      reason: `Help answer your question: "${truncate(payload.query, 80)}"`,
+      status: "pending",
+      duration: null,
+      matchedMemoryIds: null,
+      createdAt: nowISO(),
+    };
+
+    if (access === "deny") {
+      await logRequest({ ...baseRequest, status: "denied", resolvedAt: nowISO() });
+      return { outcome: "denied" };
+    }
+
+    // ALLOW permission or a standing session grant -> serve silently.
+    if (access === "allow" || hasSessionGrant(payload.appId, activeProfileId)) {
+      await approveAndInject(
+        tabId,
+        { ...baseRequest, status: "approved", resolvedAt: nowISO() },
+        access === "allow" ? "always" : "session",
+      );
+      return { outcome: "auto-approved" };
+    }
+
+    // ASK -> show the permission modal.
+    const profiles = await getProfiles();
+    const profile = profiles.find((p) => p.id === activeProfileId);
+
+    pendingByTab.set(tabId, baseRequest.id);
+    await logRequest(baseRequest);
+
+    // Pre-compute previews for EVERY profile so the card can switch profiles
+    // instantly. Retrieval is local keyword scoring + general-context fill;
+    // nothing is shared until the user allows.
+    const previews: Record<string, PreviewMemory[]> = {};
+    for (const p of profiles) {
+      const mems = await retrieveRelevantMemories(payload.query, p.id, 3);
+      previews[p.id] = mems.map((m) => ({
+        content: m.content,
+        category: m.category,
+        source: m.source,
+      }));
+    }
+
+    const showPayload: ShowMemoryRequestPayload = {
+      requestId: baseRequest.id,
+      appName,
+      profileName: profile?.name ?? "Unknown",
+      profileIcon: profile?.icon,
+      requestedCategories: baseRequest.requestedCategories.length
+        ? baseRequest.requestedCategories
+        : ["other"],
+      reason: baseRequest.reason,
+      profiles: profiles.map((p) => ({ id: p.id, name: p.name, icon: p.icon })),
+      selectedProfileId: activeProfileId,
+      previews,
+    };
+    await sendToTab(tabId, { type: MSG.SHOW_MEMORY_REQUEST, payload: showPayload });
+    return { outcome: "needs-approval" };
+  } catch (e) {
+    console.error("[Memory Wallet] handleQueryDetected failed", e);
+    pendingByTab.delete(tabId);
+    return { outcome: "no-profile" };
   }
-
-  // ASK -> show the permission modal.
-  const profiles = await getProfiles();
-  const profile = profiles.find((p) => p.id === activeProfileId);
-
-  pendingByTab.set(tabId, baseRequest.id);
-  await logRequest(baseRequest);
-
-  // Pre-compute previews for EVERY profile so the card can switch profiles
-  // instantly. Retrieval is local keyword scoring + general-context fill;
-  // nothing is shared until the user allows.
-  const previews: Record<string, PreviewMemory[]> = {};
-  for (const p of profiles) {
-    const mems = await retrieveRelevantMemories(payload.query, p.id, 3);
-    previews[p.id] = mems.map((m) => ({
-      content: m.content,
-      category: m.category,
-      source: m.source,
-    }));
-  }
-
-  const showPayload: ShowMemoryRequestPayload = {
-    requestId: baseRequest.id,
-    appName,
-    profileName: profile?.name ?? "Unknown",
-    profileIcon: profile?.icon,
-    requestedCategories: baseRequest.requestedCategories.length
-      ? baseRequest.requestedCategories
-      : ["other"],
-    reason: baseRequest.reason,
-    profiles: profiles.map((p) => ({ id: p.id, name: p.name, icon: p.icon })),
-    selectedProfileId: activeProfileId,
-    previews,
-  };
-  await sendToTab(tabId, { type: MSG.SHOW_MEMORY_REQUEST, payload: showPayload });
-  return { outcome: "needs-approval" };
 }
 
 function truncate(text: string, max: number): string {
@@ -286,6 +293,7 @@ export async function injectIntoOpenTabs(): Promise<void> {
 }
 
 export async function initBackground(): Promise<void> {
+  await migrateIfNeeded();
   await ensureSeeded(DEFAULT_AI_APPS, createDefaultProfiles());
   void injectIntoOpenTabs();
   // Warm up the semantic index in the background (downloads the model on

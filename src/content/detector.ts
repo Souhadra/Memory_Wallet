@@ -108,7 +108,7 @@ export class QueryDetector {
 
   private countMessages(): number {
     return document.querySelectorAll(
-      'div[data-message-author-role="user"], div[data-testid="user-message"]',
+      'div[data-message-author-role="user"], div[data-testid="user-message"], div.font-claude-message, [data-message-id][data-message-author-role="user"]',
     ).length;
   }
 
@@ -124,9 +124,11 @@ export class QueryDetector {
     this.emit("");
   }
 
-  /** Post-send detection (fallback mode). */
+  /** Post-send detection — fallback when interception missed (e.g. new send-button DOM). */
   private emit(snapshot: string): void {
-    if (this.handlers.shouldIntercept()) return; // interception owns the flow
+    // Even when pauseBeforeShare is on, fallback must fire if primary
+    // interception missed (new button markup, shadow DOM send, etc.).
+    // This turns a silent bypass into an after-send card.
     let query = this.cb.getUserQuery() ?? snapshot;
     query = query.trim();
     if (!query) return;

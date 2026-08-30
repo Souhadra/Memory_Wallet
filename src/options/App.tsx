@@ -46,8 +46,17 @@ export function App() {
     return NAV.some((n) => n.id === h) ? (h as SectionId) : "overview";
   });
 
+  useEffect(() => {
+    const onHash = () => {
+      const h = window.location.hash.replace("#", "");
+      if (NAV.some((n) => n.id === h)) setSection(h as SectionId);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   const showWizard =
-    !!state && (forceOnboarding || (!state.settings.onboardingDone && state.memories.length === 0));
+    !!state && (forceOnboarding || !state.settings.onboardingDone);
 
   return (
     <div className="dashboard">
@@ -64,14 +73,17 @@ export function App() {
             <button
               key={n.id}
               className={`nav-item ${section === n.id ? "active" : ""}`}
-              onClick={() => setSection(n.id)}
+              onClick={() => {
+                setSection(n.id);
+                window.location.hash = n.id;
+              }}
             >
               <span className="nav-icon"><n.icon size={16} /></span>
               {n.label}
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">Local-only prototype · v0.8.0</div>
+        <div className="sidebar-foot">Local-only · v1.0.0</div>
       </aside>
 
       <main className="content">
@@ -173,6 +185,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [fileName, setFileName] = useState("");
   const [targetProfileId, setTargetProfileId] = useState("__new");
   const [newProfileName, setNewProfileName] = useState("Personal");
   const [pickedProfile, setPickedProfile] = useState("");
@@ -251,8 +264,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
               <span className="pill">Recommended</span>
             </div>
             <p className="muted small">
-              Works with the Manage-memories list or a data export. Nested profile exports are
-              flattened automatically. Parsed and stored locally.
+              From ChatGPT: Settings → Personalization → Memory → Manage (copy the list and save as .json) or your data-export <code>memories.json</code>. Everything stays on this device.
             </p>
             <div className="form-row">
               <select value={targetProfileId} onChange={(e) => setTargetProfileId(e.target.value)}>
@@ -278,11 +290,15 @@ function Onboarding({ onDone }: { onDone: () => void }) {
                   hidden
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) void handleImportFile(f);
+                    if (f) {
+                      setFileName(f.name);
+                      void handleImportFile(f);
+                    }
                   }}
                 />
               </label>
             </div>
+            {fileName && <p className="muted small">Selected: {fileName}</p>}
           </div>
 
           <div className="wizard-option">
@@ -339,6 +355,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
             })}
           </div>
           <div className="btn-row">
+            <button className="btn" onClick={() => setStep(0)}>Back</button>
             <button className="btn btn-primary" onClick={() => void handleContinue()}>
               Continue
             </button>
@@ -359,6 +376,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
             <li>The context block + your question are sent together — the answer uses your memory.</li>
           </ol>
           <div className="btn-row">
+            <button className="btn" onClick={() => setStep(1)}>Back</button>
             <button
               className="btn btn-primary"
               onClick={() => chrome.tabs.create({ url: "https://chatgpt.com" })}
@@ -1045,16 +1063,10 @@ function Settings({ onRunSetup }: { onRunSetup: () => void }) {
 
   return (
     <>
-      <SectionTitle title="Settings" subtitle="Prototype preferences. All data stays in chrome.storage.local." />
+      <SectionTitle title="Settings" subtitle="All data stays on this device in chrome.storage.local. No backend." />
       <div className="stack">
         <Card>
-          <div className="setting-row">
-            <div>
-              <strong>Local-only mode</strong>
-              <p className="muted small">Your memory stays on this device in this prototype.</p>
-            </div>
-            <Toggle checked disabled />
-          </div>
+          <div className="muted small" style={{ letterSpacing: 0.6, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>Sharing</div>
           <div className="setting-row">
             <div>
               <strong>Ask for memory before my message is sent</strong>
@@ -1104,21 +1116,6 @@ function Settings({ onRunSetup }: { onRunSetup: () => void }) {
           </div>
           <div className="setting-row">
             <div>
-              <strong>Show wallet button on AI sites</strong>
-              <p className="muted small">
-                A small 🔐 pill on ChatGPT/Claude that re-triggers context sharing for your last
-                question. Useful if auto-detection misses a send.
-              </p>
-            </div>
-            <Toggle
-              checked={s.showToolbarButton}
-              onChange={(v) =>
-                void import("../shared/storage").then((st) => st.saveSettings({ showToolbarButton: v }))
-              }
-            />
-          </div>
-          <div className="setting-row">
-            <div>
               <strong>Max memories per request</strong>
               <p className="muted small">How many top-matched memories to include (3–5).</p>
             </div>
@@ -1134,6 +1131,31 @@ function Settings({ onRunSetup }: { onRunSetup: () => void }) {
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="muted small" style={{ letterSpacing: 0.6, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>Appearance & privacy</div>
+          <div className="setting-row">
+            <div>
+              <strong>Show wallet button on AI sites</strong>
+              <p className="muted small">
+                A small pill on ChatGPT/Claude that re-triggers context sharing for your last question.
+              </p>
+            </div>
+            <Toggle
+              checked={s.showToolbarButton}
+              onChange={(v) =>
+                void import("../shared/storage").then((st) => st.saveSettings({ showToolbarButton: v }))
+              }
+            />
+          </div>
+          <div className="setting-row" style={{ opacity: 0.7 }}>
+            <div>
+              <strong>Local-only mode</strong>
+              <p className="muted small">Your memory stays on this device. No backend, no analytics.</p>
+            </div>
+            <Toggle checked disabled />
           </div>
         </Card>
 
