@@ -6,7 +6,7 @@ interface IconProps {
   className?: string;
 }
 
-function make(children: ReactNode) {
+function make(children: ReactNode, baseStroke = 1.75) {
   return function Icon({ size = 16, className }: IconProps) {
     return (
       <svg
@@ -15,7 +15,7 @@ function make(children: ReactNode) {
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth={1.75}
+        strokeWidth={baseStroke}
         strokeLinecap="round"
         strokeLinejoin="round"
         className={className}
@@ -133,6 +133,7 @@ export const IconExternal = make(
 
 export const IconSparkle = make(
   <path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z" />,
+  1.5,
 );
 
 export const IconEye = make(
@@ -140,4 +141,5 @@ export const IconEye = make(
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
     <circle cx="12" cy="12" r="3" />
   </>,
+  1.5,
 );

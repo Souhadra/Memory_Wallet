@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { ReactNode } from "react";
 
 export function Toggle(props: {
@@ -20,8 +19,20 @@ export function Toggle(props: {
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`card ${className}`}>{children}</div>;
+export function Card({
+  children,
+  className = "",
+  elevated = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  elevated?: boolean;
+}) {
+  return (
+    <div className={`card ${elevated ? "card-elevated" : ""} ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 export function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {

@@ -434,13 +434,13 @@ function ProfilesSection() {
         <Card>
           <h3 className="card-title">New profile</h3>
           <div className="form-row">
-            <input
-              placeholder="Icon (emoji)"
-              value={icon}
-              maxLength={4}
-              onChange={(e) => setIcon(e.target.value)}
-              style={{ width: 90 }}
-            />
+              <input
+                placeholder="Icon (emoji)"
+                value={icon}
+                maxLength={4}
+                onChange={(e) => setIcon(e.target.value)}
+                className="input-icon"
+              />
             <input
               placeholder="Profile name"
               value={name}
@@ -655,7 +655,7 @@ function MemoriesSection() {
           Save Memory
         </button>
 
-        <h3 className="card-title" style={{ marginTop: 22 }}>
+        <h3 className="card-title card-title-spaced">
           Import ChatGPT memory JSON
         </h3>
         <p className="muted small">
@@ -695,7 +695,7 @@ function MemoriesSection() {
             onChange={(e) => setImportText(e.target.value)}
           />
         </label>
-        <div className="btn-row" style={{ marginTop: 0 }}>
+        <div className="btn-row btn-row-flush">
           <button className="btn btn-primary" onClick={() => void handleImport()}>
             Import
           </button>
@@ -704,7 +704,7 @@ function MemoriesSection() {
       </Card>
 
       <Card>
-        <div className="form-row" style={{ marginBottom: 10 }}>
+        <div className="form-row form-row-compact">
           <select value={filterProfile} onChange={(e) => setFilterProfile(e.target.value)}>
             <option value="all">All profiles</option>
             {state.profiles.map((p) => (
@@ -891,24 +891,23 @@ function Requests() {
               return (
                 <li
                   key={r.id}
-                  className="row request-log-row"
-                  style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}
+                  className="row request-log-row request-detail-block"
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="request-detail-top">
                     <div className="memory-main">
                       <span>
                         <strong>{app?.name ?? r.aiApplicationId}</strong> requested{" "}
                         <strong>{profile?.name ?? "?"}</strong>
                         {r.duration ? ` (${r.duration})` : ""}
                       </span>
-                      <span className="muted small query-preview">“{r.query.slice(0, 120)}”</span>
+                      <span className="muted small query-preview">"{r.query.slice(0, 120)}"</span>
                     </div>
-                    <span className="muted small" style={{ whiteSpace: "nowrap" }}>
+                    <span className="muted small query-truncated">
                       {relativeTime(r.createdAt)}
                     </span>
                     <StatusChip status={r.status} />
                   </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <div className="request-detail-actions">
                     <button className="btn small" onClick={() => setExpanded(isExpanded ? null : r.id)}>
                       {isExpanded ? "Hide" : "View"}
                     </button>
@@ -917,48 +916,39 @@ function Requests() {
                         {copied === r.id ? "Copied!" : `Copy context (${matched.length})`}
                       </button>
                     )}
-                    <span className="muted small" style={{ marginLeft: "auto" }}>
+                    <span className="muted small muted-right">
                       {r.requestedCategories?.length ? r.requestedCategories.join(", ") : ""}
                     </span>
                   </div>
                   {isExpanded && (
-                    <div
-                      style={{
-                        background: "#1d1d26",
-                        border: "1px solid #2b2b36",
-                        borderRadius: 8,
-                        padding: "10px 12px",
-                        fontSize: 12.5,
-                        lineHeight: 1.5,
-                      }}
-                    >
+                    <div className="expanded-content">
                       <div>
-                        <strong>Full query:</strong> <span className="muted">“{r.query}”</span>
+                        <strong>Full query:</strong> <span className="muted">"{r.query}"</span>
                       </div>
                       <div>
                         <strong>Reason:</strong> <span className="muted">{r.reason}</span>
                       </div>
                       <div>
                         <strong>Requested categories:</strong>{" "}
-                        <span className="muted">{r.requestedCategories?.join(", ") || "—"}</span>
+                        <span className="muted">{r.requestedCategories?.join(", ") || "\u2014"}</span>
                       </div>
                       {matched.length > 0 ? (
-                        <div style={{ marginTop: 8 }}>
+                        <div className="memory-section">
                           <strong>Shared memories ({matched.length}):</strong>
-                          <ul style={{ margin: "6px 0 0", paddingLeft: 16 }}>
+                          <ul className="memory-list">
                             {matched.map((m) => (
-                              <li key={m.id} style={{ color: "#a1a1b5" }}>
+                              <li key={m.id}>
                                 {m.content} <span className="muted small">· {m.category}</span>
                               </li>
                             ))}
                           </ul>
                         </div>
                       ) : (
-                        <div className="muted small" style={{ marginTop: 8 }}>
+                        <div className="muted small memory-section">
                           No memories were shared for this request.
                         </div>
                       )}
-                      <div className="muted small" style={{ marginTop: 8 }}>
+                      <div className="muted small memory-section">
                         ID: {r.id} · {new Date(r.createdAt).toLocaleString()}
                         {r.resolvedAt ? ` → ${new Date(r.resolvedAt).toLocaleString()}` : ""}
                       </div>
@@ -1066,7 +1056,7 @@ function Settings({ onRunSetup }: { onRunSetup: () => void }) {
       <SectionTitle title="Settings" subtitle="All data stays on this device in chrome.storage.local. No backend." />
       <div className="stack">
         <Card>
-          <div className="muted small" style={{ letterSpacing: 0.6, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>Sharing</div>
+          <div className="muted small section-label">Sharing</div>
           <div className="setting-row">
             <div>
               <strong>Ask for memory before my message is sent</strong>
@@ -1135,7 +1125,7 @@ function Settings({ onRunSetup }: { onRunSetup: () => void }) {
         </Card>
 
         <Card>
-          <div className="muted small" style={{ letterSpacing: 0.6, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>Appearance & privacy</div>
+          <div className="muted small section-label">Appearance & privacy</div>
           <div className="setting-row">
             <div>
               <strong>Show wallet button on AI sites</strong>
@@ -1150,7 +1140,7 @@ function Settings({ onRunSetup }: { onRunSetup: () => void }) {
               }
             />
           </div>
-          <div className="setting-row" style={{ opacity: 0.7 }}>
+          <div className="setting-row setting-row-muted">
             <div>
               <strong>Local-only mode</strong>
               <p className="muted small">Your memory stays on this device. No backend, no analytics.</p>

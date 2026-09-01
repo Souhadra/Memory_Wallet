@@ -1,31 +1,54 @@
-/* Mirrors src/ui/tokens.css values literally — shadow DOM can't inherit page CSS vars. */
-const TOAST_STYLE = `
+import { buildTokenStyleEl } from "../../ui/contentTokens";
+
+/* Toast + pill styles. Token variables injected via buildTokenStyleEl(). */
+const TOAST_COMPONENT_CSS = `
 .mw-toast {
   position: fixed; bottom: 64px; left: 20px; z-index: 2147483647;
   display: flex; align-items: center; gap: 8px;
-  background: #16161d; color: #ececf1; border: 1px solid #26262f;
-  border-radius: 10px; padding: 10px 14px;
+  background: rgba(21, 21, 32, 0.92);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  color: #ececf1; border: 1px solid #2e2e3e;
+  border-radius: 12px; padding: 10px 14px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
-  animation: mw-toast-in .18s cubic-bezier(.2,.7,.3,1);
+  font-size: 13px; font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  animation: mw-toast-in 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes mw-toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@keyframes mw-toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .mw-toast svg { flex: 0 0 auto; }
 .mw-toast.success svg { color: #34d399; }
 .mw-toast.warn svg { color: #fbbf24; }
+.mw-toast.info svg { color: #a5b4fc; }
 
 .mw-pill {
   position: fixed; bottom: 20px; right: 20px; z-index: 2147483646;
   display: flex; align-items: center; gap: 6px;
-  background: rgba(22,22,29,.93); color: #ececf1; border: 1px solid rgba(51,51,65,.6);
+  background: rgba(21, 21, 32, 0.9);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  color: #ececf1; border: 1px solid rgba(46, 46, 62, 0.7);
   border-radius: 999px; padding: 8px 14px; cursor: pointer;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 12.5px; font-weight: 600;
-  box-shadow: 0 8px 24px rgba(0,0,0,.35);
-  transition: transform .12s cubic-bezier(.2,.7,.3,1), border-color .12s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), border-color 120ms, box-shadow 120ms;
 }
-.mw-pill:hover { transform: translateY(-2px); border-color: #6366f1; }
-.mw-pill:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,.45); }
+
+.mw-pill:hover {
+  transform: translateY(-2px);
+  border-color: #6366f1;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.mw-pill:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+}
+
 .mw-pill svg { color: #a5b4fc; }
 `;
 
@@ -49,8 +72,11 @@ export function showToast(message: string, tone: "info" | "success" | "warn" = "
   const host = document.createElement("div");
   host.id = "memory-wallet-toast-root";
   const shadow = host.attachShadow({ mode: "open" });
+
+  // Inject shared token stylesheet + component styles
+  shadow.appendChild(buildTokenStyleEl());
   const style = document.createElement("style");
-  style.textContent = TOAST_STYLE;
+  style.textContent = TOAST_COMPONENT_CSS;
   shadow.appendChild(style);
 
   const icon = svgIcon(tone === "success" ? "check" : tone === "warn" ? "warn" : "lock");
@@ -77,8 +103,11 @@ export function showPill(label: string): void {
   const host = document.createElement("div");
   host.id = "memory-wallet-pill-root";
   const shadow = host.attachShadow({ mode: "open" });
+
+  // Inject shared token stylesheet + component styles
+  shadow.appendChild(buildTokenStyleEl());
   const style = document.createElement("style");
-  style.textContent = TOAST_STYLE;
+  style.textContent = TOAST_COMPONENT_CSS;
   shadow.appendChild(style);
 
   const container = document.createElement("div");

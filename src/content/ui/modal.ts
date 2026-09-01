@@ -1,125 +1,199 @@
 import type { PreviewMemory, ShowMemoryRequestPayload } from "../../shared/messages";
+import { buildTokenStyleEl } from "../../ui/contentTokens";
 
-/* Mirrors src/ui/tokens.css values literally — shadow DOM can't inherit page CSS vars. */
-const STYLE = `
+/* Component-specific styles for the memory request modal.
+   Token variables are injected via buildTokenStyleEl(). */
+const MODAL_COMPONENT_CSS = `
 * { box-sizing: border-box; }
+
 .mw-overlay {
-  position: fixed; top: 16px; right: 16px; z-index: 2147483647;
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 2147483647;
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 16px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  animation: mw-fadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+@keyframes mw-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mw-slideIn { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
 .mw-card {
   width: 360px; max-height: calc(100vh - 32px);
   display: flex; flex-direction: column;
-  background: #16161d; color: #ececf1;
-  border: 1px solid #26262f; border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.5);
-  overflow: hidden; animation: mw-in .18s cubic-bezier(.2,.7,.3,1);
+  background: rgba(21, 21, 32, 0.92);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  color: #ececf1;
+  border: 1px solid #2e2e3e; border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.1);
+  overflow: hidden;
+  animation: mw-slideIn 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes mw-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
 .mw-head {
   flex: 0 0 auto;
   display: flex; align-items: center; gap: 8px;
-  padding: 14px 16px 10px; font-size: 13px; font-weight: 600; letter-spacing: .2px;
+  padding: 14px 16px 10px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.3px;
   color: #a5b4fc; text-transform: uppercase;
 }
+
 .mw-head svg { color: #a5b4fc; }
+
 .mw-close {
-  margin-left: auto; background: none; border: none; color: #8b8b98;
-  font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 6px;
-  transition: background .12s, color .12s;
+  margin-left: auto;
+  background: none; border: none; color: #848494;
+  font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 8px;
+  transition: background 120ms, color 120ms;
 }
-.mw-close:hover { background: #26262f; color: #ececf1; }
+
+.mw-close:hover { background: #232330; color: #ececf1; }
+
 button:focus-visible, .mw-prof-chip:focus-visible, .mw-duration:focus-visible {
-  outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,.45);
+  outline: none; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
 }
-/* Body scrolls; head/foot stay pinned so Deny/Allow are always reachable. */
-.mw-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 16px 8px; }
-.mw-body::-webkit-scrollbar { width: 10px; }
-.mw-body::-webkit-scrollbar-thumb { background: #333341; border-radius: 999px; border: 2px solid #16161d; }
+
+.mw-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: 0 16px 8px;
+}
+
+.mw-body::-webkit-scrollbar { width: 8px; }
+.mw-body::-webkit-scrollbar-thumb { background: #2e2e3e; border-radius: 999px; border: 2px solid #151520; }
+
 .mw-lede { margin: 0 0 4px; font-size: 15px; line-height: 1.45; color: #ececf1; }
 .mw-lede b { color: #fff; }
+
 .mw-paused-note {
   margin: 0 0 12px; font-size: 12px; color: #fbbf24;
+  display: flex; align-items: center; gap: 6px;
 }
+
 .mw-paused-note .dot { animation: mw-blink 1.2s infinite; }
-@keyframes mw-blink { 50% { opacity: .25; } }
+@keyframes mw-blink { 50% { opacity: 0.25; } }
+
 .mw-section { margin-bottom: 12px; }
+
 .mw-label {
-  font-size: 11px; font-weight: 600; letter-spacing: .6px;
-  text-transform: uppercase; color: #8b8b98; margin-bottom: 5px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+  text-transform: uppercase; color: #848494; margin-bottom: 6px;
 }
+
 .mw-profiles { display: flex; flex-wrap: wrap; gap: 6px; }
+
 .mw-prof-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  background: #1d1d26; border: 1px solid #26262f; border-radius: 999px;
-  padding: 6px 11px; font-size: 12.5px; font-weight: 600; color: #c9c9d4; cursor: pointer;
-  transition: border-color .12s, background .12s;
+  background: #1a1a26; border: 1px solid #232330; border-radius: 999px;
+  padding: 6px 12px; font-size: 12.5px; font-weight: 600; color: #c5c5d0; cursor: pointer;
+  transition: border-color 120ms, background 120ms, box-shadow 120ms;
 }
-.mw-prof-chip:hover { border-color: #333341; }
-.mw-prof-chip.selected { border-color: #6366f1; background: #23233a; color: #fff; }
+
+.mw-prof-chip:hover { border-color: #2e2e3e; background: #1e1e35; }
+
+.mw-prof-chip.selected {
+  border-color: #6366f1; background: #1e1e35; color: #fff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
 .mw-list { margin: 0; padding: 0; list-style: none; }
 .mw-list li {
-  font-size: 13.5px; color: #c9c9d4; padding: 3px 0; display: flex; gap: 8px; align-items: center;
+  font-size: 13.5px; color: #c5c5d0; padding: 3px 0;
+  display: flex; gap: 8px; align-items: center;
 }
+
 .mw-check { color: #34d399; font-weight: 700; display: inline-flex; flex: 0 0 auto; }
+
 .mw-preview-zone { min-height: 20px; }
+
 .mw-preview { margin: 0; padding: 0; list-style: none; }
-.mw-preview li { padding: 5px 0; border-bottom: 1px solid #1e1e28; }
+.mw-preview li { padding: 6px 0; border-bottom: 1px solid #1c1c28; }
 .mw-preview li:last-child { border-bottom: none; }
+
 .mw-prev-text {
-  font-size: 12.5px; color: #a1a1b5; line-height: 1.4;
+  font-size: 12.5px; color: #c5c5d0; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+
 .mw-preview li.general .mw-prev-text { color: #71717a; }
 .mw-preview li.semantic .mw-prev-text { color: #93c5fd; }
+
 .mw-cat {
-  display: inline-block; margin-top: 2px;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  display: inline-block; margin-top: 3px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
   color: #818cf8;
 }
+
 .mw-cat.sem-tag { color: #60a5fa; }
 .mw-cat.gen-tag { color: #fbbf24; }
+
 .mw-preview-empty {
-  font-size: 12.5px; color: #6b7280; font-style: italic; margin: 0;
+  font-size: 12.5px; color: #71717a; font-style: italic; margin: 0;
 }
+
 .mw-reason {
-  font-size: 13.5px; color: #b9b9c6; font-style: italic;
-  background: #1d1d26; border-left: 3px solid #6366f1;
-  padding: 8px 12px; border-radius: 0 8px 8px 0;
+  font-size: 13.5px; color: #c5c5d0; font-style: italic;
+  background: #1a1a26; border-left: 3px solid #6366f1;
+  padding: 8px 12px; border-radius: 0 10px 10px 0;
+  line-height: 1.45;
 }
+
 .mw-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
 .mw-badge {
-  font-size: 11px; font-weight: 700; letter-spacing: .5px;
-  padding: 3px 9px; border-radius: 99px;
-  background: #12291f; color: #34d399; border: 1px solid #1e4634;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  padding: 3px 10px; border-radius: 999px;
+  background: #0f251d; color: #34d399; border: 1px solid #1b4032;
 }
-/* Compact segmented duration control. */
+
 .mw-durations { display: flex; gap: 6px; }
+
 .mw-duration {
   flex: 1; text-align: center; cursor: pointer;
-  background: #1d1d26; border: 1px solid #26262f; border-radius: 9px;
-  padding: 8px 4px; font-size: 12px; font-weight: 600; color: #c9c9d4;
-  transition: border-color .12s, background .12s;
+  background: #1a1a26; border: 1px solid #232330; border-radius: 10px;
+  padding: 8px 4px; font-size: 12px; font-weight: 600; color: #c5c5d0;
+  transition: border-color 120ms, background 120ms, box-shadow 120ms;
 }
-.mw-duration:hover { border-color: #333341; }
-.mw-duration.selected { border-color: #6366f1; background: #23233a; color: #fff; }
+
+.mw-duration:hover { border-color: #2e2e3e; }
+
+.mw-duration.selected {
+  border-color: #6366f1; background: #1e1e35; color: #fff;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
 .mw-foot {
   flex: 0 0 auto; display: flex; gap: 10px;
-  padding: 12px 16px 16px; background: #16161d; border-top: 1px solid #26262f;
+  padding: 12px 16px 16px;
+  background: rgba(21, 21, 32, 0.95);
+  border-top: 1px solid #232330;
 }
+
 .mw-btn {
-  flex: 1; padding: 10px 0; border-radius: 10px; border: none;
-  font-size: 14px; font-weight: 600; cursor: pointer;
-  transition: filter .12s, background .12s;
+  flex: 1; padding: 10px 0; border-radius: 12px; border: none;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: filter 120ms, background 120ms, box-shadow 120ms;
 }
-.mw-btn:hover { filter: brightness(1.12); }
-.mw-deny { background: #2b2b36; color: #ececf1; }
-.mw-deny:hover { background: #333341; filter: none; }
-.mw-allow { background: #6366f1; color: #fff; }
+
+.mw-btn:hover { filter: brightness(1.1); }
+
+.mw-deny {
+  background: #232330; color: #ececf1;
+  border: 1px solid #2e2e3e;
+}
+
+.mw-deny:hover { background: #2e2e3e; filter: none; }
+
+.mw-allow {
+  background: #6366f1; color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.mw-allow:hover { background: #7579f5; }
+
 .mw-brand {
   flex: 0 0 auto;
-  padding: 0 16px 10px; font-size: 11px; color: #55555f;
-  letter-spacing: .3px; background: #16161d;
+  padding: 0 16px 10px; font-size: 11px; color: #50505e;
+  letter-spacing: 0.3px; background: rgba(21, 21, 32, 0.95);
 }
 `;
 
@@ -164,8 +238,11 @@ export class MemoryRequestModal {
       const host = document.createElement("div");
       host.id = "memory-wallet-request-root";
       const shadow = host.attachShadow({ mode: "open" });
+
+      // Inject shared token stylesheet + component styles
+      shadow.appendChild(buildTokenStyleEl());
       const style = document.createElement("style");
-      style.textContent = STYLE;
+      style.textContent = MODAL_COMPONENT_CSS;
       shadow.appendChild(style);
 
       const container = document.createElement("div");

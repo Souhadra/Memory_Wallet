@@ -72,6 +72,7 @@ export function App() {
 
       {walletEmpty ? (
         <section className="empty">
+          <div className="empty-icon"><IconLock size={28} /></div>
           <p className="empty-title">Set up your wallet</p>
           <p className="muted small center">
             Import your ChatGPT memory JSON or load sample data to start sharing context with AI apps.
@@ -80,17 +81,17 @@ export function App() {
             Get started
           </button>
           <button className="btn" onClick={() => void handleLoadDemo()} disabled={loadingDemo}>
-            {loadingDemo ? "Loading…" : "Load sample data"}
+            {loadingDemo ? "Loading\u2026" : "Load sample data"}
           </button>
         </section>
       ) : (
         <>
-          <section className="section">
+          <section className="section anim-slide-up">
             <div className="section-head">
               <h2>Profiles</h2>
               <span className="muted">{state.memories.length} memories</span>
             </div>
-            <ul className="profile-list">
+            <ul className="profile-list anim-stagger">
               {state.profiles.map((p) => {
                 const count = memoryCountFor(state, p.id);
                 const isActive = p.id === activeProfileId;
@@ -112,7 +113,7 @@ export function App() {
             </ul>
           </section>
 
-          <section className="section">
+          <section className="section anim-slide-up">
             <div className="section-head">
               <h2>Recent Requests</h2>
               <span className="muted">last {recent.length}</span>
@@ -122,7 +123,7 @@ export function App() {
                 No requests yet. Ask a question on ChatGPT or Claude.
               </p>
             ) : (
-              <ul className="request-list">
+              <ul className="request-list anim-stagger">
                 {recent.map((r) => {
                   const app = state.aiApplications.find((a) => a.id === r.aiApplicationId);
                   const profile = state.profiles.find((p) => p.id === r.profileId);
