@@ -143,3 +143,59 @@ export const IconEye = make(
   </>,
   1.5,
 );
+
+export const IconWallet = make(
+  <>
+    <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+    <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+    <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+  </>,
+);
+
+export const IconZap = make(
+  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />,
+);
+
+export const IconChevronDown = make(
+  <path d="m6 9 6 6 6-6" />,
+);
+
+export const IconSearch = make(
+  <>
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.3-4.3" />
+  </>,
+);
+
+export const IconLayers = make(
+  <>
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
+  </>,
+);
+
+export const IconActivity = make(
+  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+);
+
+export const IconUser = make(
+  <>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </>,
+);
+
+export const IconArrowRight = make(
+  <>
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="12 5 19 12 12 19" />
+  </>,
+);
+
+export const IconRefresh = make(
+  <>
+    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+  </>,
+);
+
