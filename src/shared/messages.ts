@@ -23,6 +23,8 @@ export const EMBED_MSG = {
   REBUILD_INDEX: "MW_REBUILD_INDEX",
   /** Dashboard -> background -> offscreen: delete cached model files. */
   CLEAR_MODEL_CACHE: "MW_CLEAR_MODEL_CACHE",
+  /** Content script -> background: an AI tab opened, start the model loading now. */
+  WARMUP: "MW_WARMUP",
 } as const;
 
 export type MessageType = (typeof MSG)[keyof typeof MSG];

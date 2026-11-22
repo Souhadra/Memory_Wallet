@@ -9,6 +9,7 @@ import { isImporting } from "./importState";
 import { startOneClickImport } from "./importFlow";
 import {
   MSG,
+  EMBED_MSG,
   type InjectContextPayload,
   type ShowMemoryRequestPayload,
 } from "../shared/messages";
@@ -31,6 +32,9 @@ if (!w.__memoryWalletLoaded) {
 function initContentScript(provider: AIProviderAdapter): void {
   // Warm the bundled font before any permission card or toast renders.
   void ensureContentFont();
+
+  // Start the on-device model loading now, so it is ready before the first question is sent.
+  void chrome.runtime.sendMessage({ type: EMBED_MSG.WARMUP }).catch(() => undefined);
 
   // Cached settings so capture-phase listeners can decide synchronously.
   let settings: Partial<Settings> = {};

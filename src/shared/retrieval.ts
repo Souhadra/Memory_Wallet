@@ -3,6 +3,7 @@ import { getMemoriesForProfile, getSettings } from "./storage";
 import { CATEGORY_PRIORITY, QUERY_SYNONYMS } from "./constants";
 import { getVectorsByProfile } from "./vectorStore";
 import { EMBED_MSG } from "./messages";
+import { embedBudgetMs } from "./embedBudget";
 import { inferCategoriesFromQuery } from "./classify";
 import { analyzeQuery, buildDf, isCompoundFalseFriend, scoreMatch, type RankDoc } from "./rank";
 
@@ -12,9 +13,10 @@ export { inferCategoriesFromQuery } from "./classify";
 const SEMANTIC_THRESHOLD = 0.38;
 /** Above this, a semantic match outranks any keyword-only match. */
 const SEMANTIC_STRONG = 0.58;
-/** Cold-start budget for the local model — long enough that a worker wake-up
- *  does not silently disable semantic ranking on the first question. */
-const QUERY_EMBED_TIMEOUT_MS = 6000;
+/** Set once the model has answered. Until then (first question after the browser or the
+ *  worker starts) the wait is short, so a held message never sits behind a cold model load;
+ *  a warm model gets the generous budget. See embedBudget.ts. */
+let modelKnownWarm = false;
 
 /** "What do you know about me?" and friends — answer from the profile itself. */
 function isProfileSummary(query: string): boolean {
@@ -61,9 +63,10 @@ async function embedQuery(query: string): Promise<number[] | null> {
     if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return null;
     const res = (await withTimeout(
       chrome.runtime.sendMessage({ type: EMBED_MSG.EMBED_QUERY, texts: [query] }),
-      QUERY_EMBED_TIMEOUT_MS,
+      embedBudgetMs(modelKnownWarm),
     )) as { ok?: boolean; vectors?: number[][] } | undefined | null;
     if (!res?.ok || !res.vectors?.[0]) return null;
+    modelKnownWarm = true;
     return res.vectors[0];
   } catch {
     return null;

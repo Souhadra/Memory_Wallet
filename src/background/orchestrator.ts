@@ -172,8 +172,10 @@ export async function handleQueryDetected(
   payload: QueryDetectedPayload,
 ): Promise<HandleResult> {
   try {
-    // Keep the embedding index in sync (no-op when nothing changed).
+    // Keep the embedding index in sync (no-op when nothing changed), and make sure the
+    // model page still exists so semantic matching does not silently stop.
     kickOffIndexing();
+    void ensureOffscreen();
 
     if (await hasPending(tabId)) return { outcome: "busy" };
 
@@ -403,8 +405,9 @@ export async function initBackground(): Promise<void> {
   await migrateIfNeeded();
   await ensureSeeded(DEFAULT_AI_APPS, createDefaultProfiles());
   void injectIntoOpenTabs();
-  // Warm up the semantic index in the background (downloads the model on
-  // first ever run; no-op afterwards). Never blocks anything.
+  // Keep the semantic index in sync in the background (a no-op when nothing
+  // changed). The model ships in the package, so nothing is downloaded. Never
+  // blocks anything.
   kickOffIndexing();
   // An already-built index never calls the model, so on a fresh browser it is
   // still unloaded. Warm it now: the first permission card should not have to
@@ -541,6 +544,13 @@ export async function initBackground(): Promise<void> {
         case EMBED_MSG.REBUILD_INDEX: {
           kickOffIndexing(true);
           sendResponse({ ok: true, started: true });
+          break;
+        }
+        case EMBED_MSG.WARMUP: {
+          // An AI tab opened. Make sure the model page exists (it starts loading the
+          // model itself) so it is ready before the first question is sent.
+          void ensureOffscreen();
+          sendResponse({ ok: true });
           break;
         }
         case EMBED_MSG.CLEAR_MODEL_CACHE: {

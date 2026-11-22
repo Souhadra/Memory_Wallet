@@ -72,6 +72,11 @@ async function embed(texts: string[]): Promise<number[][]> {
   return output.tolist();
 }
 
+// Start loading the model as soon as this page exists instead of on the first embed request.
+// Waiting for a message made the first question after every browser start pay the whole load,
+// and the background's startup warm-up message can arrive before this listener is registered.
+void getExtractor().catch(() => undefined);
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === EMBED_MSG.EMBED_QUERY) {
     const reqId = (message as { reqId?: number }).reqId;

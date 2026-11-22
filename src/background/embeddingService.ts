@@ -17,6 +17,7 @@ import {
 } from "../shared/vectorStore";
 import { nowISO } from "../shared/constants";
 import { EMBED_MSG } from "../shared/messages";
+import { isNoReceiverError } from "../shared/embedBudget";
 import type { Memory } from "../shared/types";
 
 /** Embed the section heading with the fact so "faculty outreach" matches the
@@ -81,6 +82,25 @@ export function handleEmbedResult(message: { type?: string; reqId?: number; ok?:
   return true;
 }
 
+/**
+ * Send one embed request to the offscreen page. That page registers its listener a moment
+ * after `createDocument` resolves, so the first send can find nobody listening. That used to
+ * be swallowed, which cost the caller its whole timeout (30 s for indexing). Retry the
+ * "no receiver yet" case with a short backoff, and stop once the caller has given up.
+ */
+async function sendEmbedRequest(reqId: number, texts: string[]): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (!pending.has(reqId)) return;
+    try {
+      await chrome.runtime.sendMessage({ type: EMBED_MSG.EMBED_QUERY, reqId, texts });
+      return;
+    } catch (err) {
+      if (!isNoReceiverError(err)) return;
+      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+  }
+}
+
 export function embedTexts(texts: string[], timeoutMs = 4000): Promise<number[][] | null> {
   if (texts.length === 0) return Promise.resolve([]);
   return (async () => {
@@ -88,9 +108,7 @@ export function embedTexts(texts: string[], timeoutMs = 4000): Promise<number[][
     const reqId = ++seq;
     return new Promise<number[][] | null>((resolve) => {
       pending.set(reqId, resolve);
-      void chrome.runtime
-        .sendMessage({ type: EMBED_MSG.EMBED_QUERY, reqId, texts })
-        .catch(() => undefined);
+      void sendEmbedRequest(reqId, texts);
       setTimeout(() => {
         if (pending.has(reqId)) {
           pending.delete(reqId);
@@ -150,7 +168,7 @@ export async function ensureIndex(force = false): Promise<void> {
           total: memories.length,
           error: detail
             ? `Embedding failed: ${detail.slice(0, 240)}`
-            : "embedding unavailable (offline or model failed to load)",
+            : "embedding model did not respond in time (it ships inside the extension, so this is not a network problem) — try Rebuild index",
         });
         return;
       }
