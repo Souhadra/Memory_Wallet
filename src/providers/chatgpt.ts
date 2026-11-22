@@ -1,4 +1,5 @@
 import type { AIProviderAdapter } from "./types";
+import { readEditableText } from "./composerText";
 
 // Ordered fallbacks — ChatGPT's markup changes; try newest known first.
 const USER_MESSAGE_SELECTORS = [
@@ -99,7 +100,8 @@ export const chatgptAdapter: AIProviderAdapter = {
     const composer = this.getComposer();
     if (!composer) return "";
     if (composer instanceof HTMLTextAreaElement) return composer.value;
-    return composer.textContent ?? "";
+    // textContent would glue paragraphs together and mangle multi-line drafts.
+    return readEditableText(composer) || (composer.textContent ?? "");
   },
 
   setComposerText(text: string): boolean {
