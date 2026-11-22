@@ -10,6 +10,7 @@
     "icons": "node scripts/icons.mjs",
     "fetch:model": "node scripts/fetch-model.mjs",
     "check:model": "node scripts/fetch-model.mjs --check",
+    "eval:retrieval": "node scripts/eval-retrieval.mjs",
     "check:no-remote": "node scripts/check-no-remote.mjs",
     "build": "node scripts/build.mjs",
     "release": "node scripts/build.mjs --production --zip && node scripts/check-no-remote.mjs",
