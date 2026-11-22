@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-extract.mjs && node scripts/test-rank.mjs && node scripts/test-consent.mjs && node scripts/test-migration.mjs",
+    "test": "node scripts/test-extract.mjs && node scripts/test-rank.mjs && node scripts/test-consent.mjs && node scripts/test-card-keys.mjs && node scripts/test-migration.mjs",
     "icons": "node scripts/icons.mjs",
     "fetch:model": "node scripts/fetch-model.mjs",
     "check:model": "node scripts/fetch-model.mjs --check",

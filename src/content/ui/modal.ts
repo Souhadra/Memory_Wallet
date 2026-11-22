@@ -2,6 +2,7 @@ import type { PreviewMemory, ShowMemoryRequestPayload } from "../../shared/messa
 import { buildTokenStyleEl } from "../../ui/contentTokens";
 import { brandMarkSvg } from "../../ui/brand";
 import { ensureContentFont } from "../font";
+import { enterAction } from "./cardKeys";
 
 /* Component-specific styles for the memory request permission modal.
    Token variables are injected via buildTokenStyleEl(). */
@@ -507,11 +508,23 @@ export class MemoryRequestModal {
       });
 
       // Keyboard shortcuts: Enter to allow, Escape to deny, Tab stays inside the card
+      const shownAt = performance.now();
       this.keyListener = (e: KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
+          // Enter on a focused button must activate THAT button (Tab to Deny + Enter denies),
+          // and a stray/held Enter right after the card appears must not grant anything.
+          const focused = shadow.activeElement;
+          const action = enterAction({
+            sinceShownMs: performance.now() - shownAt,
+            focusOnControl: focused instanceof HTMLElement && focused.tagName === "BUTTON",
+            repeat: e.repeat,
+          });
+          if (action === "native") return;
           e.preventDefault();
           e.stopPropagation();
-          finish({ decision: "allow", duration: durationValue(), profileId: selectedProfileId });
+          if (action === "allow") {
+            finish({ decision: "allow", duration: durationValue(), profileId: selectedProfileId });
+          }
           return;
         }
         if (e.key === "Escape") {
